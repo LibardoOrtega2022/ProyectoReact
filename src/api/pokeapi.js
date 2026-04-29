@@ -1,5 +1,7 @@
 const API_BASE = 'https://pokeapi.co/api/v2'
 const pokemonCache = new Map()
+const typeCache = new Map()
+const speciesCache = new Map()
 
 /**
  * Fetches JSON from PokéAPI and surfaces a readable error when the request fails.
@@ -102,4 +104,24 @@ export async function fetchPokemonNamesByType(typeName) {
 export async function fetchPokemonNamesByGeneration(generationName) {
   const data = await requestJson(`/generation/${encodeURIComponent(generationName)}`)
   return data.pokemon_species.map(({ name }) => name)
+}
+
+/**
+ * Fetches and caches a type payload (damage_relations, etc.)
+ */
+export async function fetchTypeData(typeName) {
+  if (typeCache.has(typeName)) return typeCache.get(typeName)
+  const data = await requestJson(`/type/${encodeURIComponent(typeName)}`)
+  typeCache.set(typeName, data)
+  return data
+}
+
+/**
+ * Fetches and caches a species payload (capture_rate, legendary flag, etc.)
+ */
+export async function fetchSpeciesData(speciesNameOrId) {
+  if (speciesCache.has(speciesNameOrId)) return speciesCache.get(speciesNameOrId)
+  const data = await requestJson(`/pokemon-species/${encodeURIComponent(speciesNameOrId)}`)
+  speciesCache.set(speciesNameOrId, data)
+  return data
 }

@@ -1,4 +1,5 @@
-import { formatDisplayName, getPokemonArtworkUrl } from '../api/pokeapi'
+import { useEffect, useState } from 'react'
+import { formatDisplayName, getPokemonArtworkUrl, fetchTypeData, fetchSpeciesData } from '../api/pokeapi'
 
 /**
  * Formats PokéAPI metric values into readable units.
@@ -61,10 +62,72 @@ function getPrimaryTypeTheme(primaryType) {
  * Detailed Pokémon card with animated artwork, stats, abilities and metadata.
  */
 export default function PokemonCard({ pokemon }) {
+  const [weaknesses, setWeaknesses] = useState([])
+  const [rarityLabel, setRarityLabel] = useState(null)
   const totalStats = getTotalStats(pokemon.stats)
   const abilities = pokemon.abilities.map(({ ability }) => formatDisplayName(ability.name))
   const primaryType = pokemon.types[0]?.type.name ?? 'normal'
   const typeTheme = getPrimaryTypeTheme(primaryType)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadExtras() {
+      try {
+        // Fetch type data for each type the Pokémon has
+        const types = pokemon.types.map((t) => t.type.name)
+        const typeDatas = await Promise.all(types.map((t) => fetchTypeData(t)))
+
+        // Combine damage relations into a map of multipliers
+        const multiplier = {}
+
+        for (const td of typeDatas) {
+          td.damage_relations.double_damage_from.forEach((t) => {
+            multiplier[t.name] = (multiplier[t.name] || 1) * 2
+          })
+          td.damage_relations.half_damage_from.forEach((t) => {
+            multiplier[t.name] = (multiplier[t.name] || 1) * 0.5
+          })
+          td.damage_relations.no_damage_from.forEach((t) => {
+            multiplier[t.name] = 0
+          })
+        }
+
+        const weaknessList = Object.entries(multiplier)
+          .map(([name, mult]) => ({ name, multiplier: mult }))
+          .filter((w) => w.multiplier > 1)
+          .sort((a, b) => b.multiplier - a.multiplier)
+
+        // Fetch species info to determine rarity (capture_rate, legendary)
+        const speciesName = pokemon.species?.name
+        let rarity = null
+        if (speciesName) {
+          const species = await fetchSpeciesData(speciesName)
+          if (species.is_legendary || species.is_mythical) {
+            rarity = 'Legendario'
+          } else {
+            const capture = species.capture_rate ?? 0
+            if (capture >= 200) rarity = 'Común'
+            else if (capture >= 100) rarity = 'Poco común'
+            else if (capture >= 50) rarity = 'Raro'
+            else if (capture >= 11) rarity = 'Muy raro'
+            else rarity = 'Extremadamente raro'
+          }
+        }
+
+        if (!active) return
+        setWeaknesses(weaknessList)
+        setRarityLabel(rarity)
+      } catch {
+        // ignore extras failure silently
+      }
+    }
+
+    loadExtras()
+    return () => {
+      active = false
+    }
+  }, [pokemon])
 
   return (
     <article
@@ -92,16 +155,17 @@ export default function PokemonCard({ pokemon }) {
             <p className="eyebrow">Pokémon</p>
             <h3 className="pokemon-card__title">{formatDisplayName(pokemon.name)}</h3>
           </div>
-          <div className="pokemon-card__types">
-            {pokemon.types.map(({ type }) => (
-              <span key={type.name} className="type-pill">
-                {formatDisplayName(type.name)}
-              </span>
-            ))}
-          </div>
+            <div className="pokemon-card__types">
+              {pokemon.types.map(({ type }) => (
+                <span key={type.name} className="type-pill">
+                  {formatDisplayName(type.name)}
+                </span>
+              ))}
+              {rarityLabel && <span className="rarity-badge">{rarityLabel}</span>}
+            </div>
         </div>
 
-        <div className="pokemon-card__meta pokemon-card__meta--summary">
+          <div className="pokemon-card__meta pokemon-card__meta--summary">
           <div className="pokemon-card__metric-card">
             <div className="pokemon-card__metric-head">
                 {getMetricIcon('height')}
@@ -131,6 +195,23 @@ export default function PokemonCard({ pokemon }) {
             <strong>{totalStats}</strong>
           </div>
         </div>
+        <section className="pokemon-card__section pokemon-card__section--weaknesses">
+          <div className="section-title-row">
+            <h4>Debilidades</h4>
+            <span>{weaknesses.length} tipos</span>
+          </div>
+          <div className="weakness-list">
+            {weaknesses.length === 0 ? (
+              <span className="weakness-pill">Ninguna notable</span>
+            ) : (
+              weaknesses.map((w) => (
+                <span key={w.name} className="weakness-pill">
+                  {formatDisplayName(w.name)} x{w.multiplier}
+                </span>
+              ))
+            )}
+          </div>
+        </section>
 
         <section className="pokemon-card__section">
           <div className="section-title-row">
