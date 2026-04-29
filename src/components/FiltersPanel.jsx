@@ -1,3 +1,6 @@
+/**
+ * Filter panel for narrowing the Pokédex by type and generation.
+ */
 export default function FiltersPanel({
   generationOptions,
   onClearFilters,

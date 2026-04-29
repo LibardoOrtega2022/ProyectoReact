@@ -1,5 +1,8 @@
 import PokemonCard from './PokemonCard'
 
+/**
+ * Responsive grid that renders the current page of detailed Pokémon cards.
+ */
 export default function PokemonGrid({
   loading,
   loadingFilters,

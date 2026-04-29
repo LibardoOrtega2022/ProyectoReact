@@ -1,3 +1,6 @@
+/**
+ * Builds a compact page selector with ellipses for large result sets.
+ */
 function buildPageItems(currentPage, totalPages) {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1)
@@ -23,6 +26,9 @@ function buildPageItems(currentPage, totalPages) {
   return items
 }
 
+/**
+ * Pagination controls for browsing the current Pokédex page.
+ */
 export default function Pagination({ currentPage, onPageChange, totalPages }) {
   if (totalPages <= 1) {
     return null
