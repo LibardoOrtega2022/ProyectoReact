@@ -65,6 +65,32 @@ function getPrimaryTypeTheme(primaryType) {
   return typeThemes[primaryType] || typeThemes.normal
 }
 
+function getRarityBadgeLabel(rarityLabel) {
+  const labels = {
+    Legendario: 'LEGENDARIO',
+    'Extremadamente raro': 'EXT. RARO',
+    'Muy raro': 'MUY RARO',
+    'Raro': 'RARO',
+    'Poco común': 'POCO COMÚN',
+    'Común': 'COMÚN',
+  }
+
+  return labels[rarityLabel] || rarityLabel || ''
+}
+
+function getRarityBadgeVariant(rarityLabel) {
+  const variants = {
+    Legendario: 'legendary',
+    'Extremadamente raro': 'extreme',
+    'Muy raro': 'very-rare',
+    'Raro': 'rare',
+    'Poco común': 'uncommon',
+    'Común': 'common',
+  }
+
+  return variants[rarityLabel] || 'common'
+}
+
 /**
  * Detailed Pokémon card with animated artwork, stats, abilities and metadata.
  */
@@ -164,16 +190,21 @@ export default function PokemonCard({ pokemon }) {
     >
       <div className="pokemon-card__shell">
         <header className="pokemon-card__header">
-          <div className="pokemon-card__title-wrap">
-            <h3 className="pokemon-card__rarity">{rarityLabel}</h3>
-            {rarityLabel && <span className="pokemon-card__title">{formatDisplayName(pokemon.name)} </span>}
-          </div>
-          <div className="pokemon-card__hp">
+          {rarityLabel ? (
+            <h3 className={`pokemon-card__rarity pokemon-card__rarity--${getRarityBadgeVariant(rarityLabel)}`} title={rarityLabel}>
+              {getRarityBadgeLabel(rarityLabel)}
+            </h3>
+          ) : (
+            <span className="pokemon-card__rarity pokemon-card__rarity--empty" aria-hidden="true">
+              &nbsp;
+            </span>
+          )}
+
+          <span className="pokemon-card__title">{formatDisplayName(pokemon.name)}</span>
+
+          <div className="pokemon-card__hp" aria-label={`PS ${hpStat}`}>
             <span className="pokemon-card__hp-label">PS</span>
             <strong>{hpStat}</strong>
-            <span className="pokemon-card__energy-badge" aria-hidden="true">
-              {primaryTypeIcon}
-            </span>
           </div>
         </header>
 
@@ -190,10 +221,19 @@ export default function PokemonCard({ pokemon }) {
           </div>
         </div>
 
-        <div className="pokemon-card__info-strip">
-          <span>N.º {String(pokemon.id).padStart(3, '0')}</span>
-          <span>Altura {heightLabel}</span>
-          <span>Peso {weightLabel}</span>
+        <div className="pokemon-card__info-strip" aria-label="Datos rápidos del Pokémon">
+          <div className="pokemon-card__info-chip">
+            <span>N.º</span>
+            <strong>{String(pokemon.id).padStart(3, '0')}</strong>
+          </div>
+          <div className="pokemon-card__info-chip">
+            <span>Altura</span>
+            <strong>{heightLabel}</strong>
+          </div>
+          <div className="pokemon-card__info-chip">
+            <span>Peso</span>
+            <strong>{weightLabel}</strong>
+          </div>
         </div>
 
         <section className="pokemon-card__attack-panel">
