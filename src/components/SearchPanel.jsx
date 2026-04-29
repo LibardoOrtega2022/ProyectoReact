@@ -1,3 +1,6 @@
+/**
+ * Hero section that holds the main search controls and result count.
+ */
 export default function SearchPanel({
   loading,
   onRandomPokemon,
@@ -11,7 +14,7 @@ export default function SearchPanel({
       <div className="panel-heading panel-heading--hero">
         <div>
           <p className="eyebrow">PokéAPI + React</p>
-          <h1>POKEDEX</h1>
+          <h1>Pokédex</h1>
           <p className="intro">
             Busca por nombre o número, filtra por tipo o generación y recorre los
             resultados por páginas.
