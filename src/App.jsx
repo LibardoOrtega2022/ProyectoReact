@@ -5,15 +5,21 @@ import {
   fetchPokemonDetailsByNames,
   fetchPokemonGenerationOptions,
   fetchPokemonNamesByGeneration,
+  fetchPokemonNamesByRarity,
   fetchPokemonNamesByType,
   fetchPokemonTypeOptions,
 } from './api/pokeapi'
-import FiltersPanel from './components/FiltersPanel'
+import FilterDropdown from './components/FilterDropdown'
 import Pagination from './components/Pagination'
 import PokemonGrid from './components/PokemonGrid'
 import SearchPanel from './components/SearchPanel'
 
 const PAGE_SIZE = 12
+
+function intersectNames(sourceNames, allowedNames) {
+  const allowed = new Set(allowedNames)
+  return sourceNames.filter((name) => allowed.has(name))
+}
 
 /**
  * Combines search text and active filters into the list of visible Pokémon names.
@@ -25,6 +31,8 @@ function buildFilteredNames(
   typeMatches,
   selectedGeneration,
   generationMatches,
+  selectedRarity,
+  rarityMatches,
 ) {
   let filteredNames = catalog.map((pokemon) => pokemon.name)
 
@@ -50,6 +58,15 @@ function buildFilteredNames(
     filteredNames = filteredNames.filter((name) => generationMatchSet.has(name))
   }
 
+  if (selectedRarity) {
+    if (rarityMatches === null) {
+      return []
+    }
+
+    const rarityMatchSet = new Set(rarityMatches)
+    filteredNames = filteredNames.filter((name) => rarityMatchSet.has(name))
+  }
+
   return filteredNames
 }
 
@@ -61,14 +78,27 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [selectedGeneration, setSelectedGeneration] = useState('')
+  const [selectedRarity, setSelectedRarity] = useState('')
   const [typeMatches, setTypeMatches] = useState(null)
   const [generationMatches, setGenerationMatches] = useState(null)
+  const [rarityMatches, setRarityMatches] = useState(null)
   const [pagePokemon, setPagePokemon] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [loadingCatalog, setLoadingCatalog] = useState(true)
   const [loadingFilters, setLoadingFilters] = useState(false)
   const [loadingPage, setLoadingPage] = useState(false)
+  const [showFilterLoading, setShowFilterLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setShowFilterLoading(loadingFilters)
+    }, 180)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [loadingFilters])
 
   useEffect(() => {
     let active = true
@@ -115,9 +145,10 @@ function App() {
     let active = true
 
     async function loadFilterMatches() {
-      if (!selectedType && !selectedGeneration) {
+      if (!selectedType && !selectedGeneration && !selectedRarity) {
         setTypeMatches(null)
         setGenerationMatches(null)
+        setRarityMatches(null)
         setLoadingFilters(false)
         return
       }
@@ -125,6 +156,11 @@ function App() {
       setLoadingFilters(true)
 
       try {
+        const catalogNames = catalog.map((pokemon) => pokemon.name)
+        const searchedNames = searchTerm
+          ? catalogNames.filter((name) => name.includes(searchTerm))
+          : catalogNames
+
         const [nextTypeMatches, nextGenerationMatches] = await Promise.all([
           selectedType ? fetchPokemonNamesByType(selectedType) : Promise.resolve(null),
           selectedGeneration
@@ -132,12 +168,25 @@ function App() {
             : Promise.resolve(null),
         ])
 
+        let rarityBaseNames = searchedNames
+        if (selectedType && nextTypeMatches) {
+          rarityBaseNames = intersectNames(rarityBaseNames, nextTypeMatches)
+        }
+        if (selectedGeneration && nextGenerationMatches) {
+          rarityBaseNames = intersectNames(rarityBaseNames, nextGenerationMatches)
+        }
+
+        const nextRarityMatches = selectedRarity
+          ? await fetchPokemonNamesByRarity(rarityBaseNames, selectedRarity)
+          : null
+
         if (!active) {
           return
         }
 
         setTypeMatches(nextTypeMatches)
         setGenerationMatches(nextGenerationMatches)
+        setRarityMatches(nextRarityMatches)
         setError('')
       } catch (cause) {
         if (!active) {
@@ -146,6 +195,7 @@ function App() {
 
         setTypeMatches(selectedType ? [] : null)
         setGenerationMatches(selectedGeneration ? [] : null)
+        setRarityMatches(selectedRarity ? [] : null)
         setError(cause instanceof Error ? cause.message : 'No se pudieron cargar los filtros.')
       } finally {
         if (active) {
@@ -159,7 +209,7 @@ function App() {
     return () => {
       active = false
     }
-  }, [selectedType, selectedGeneration])
+  }, [catalog, searchTerm, selectedType, selectedGeneration, selectedRarity])
 
   const filteredNames = useMemo(
     () =>
@@ -170,15 +220,28 @@ function App() {
         typeMatches,
         selectedGeneration,
         generationMatches,
+        selectedRarity,
+        rarityMatches,
       ),
-    [catalog, generationMatches, searchTerm, selectedGeneration, selectedType, typeMatches],
+    [
+      catalog,
+      generationMatches,
+      rarityMatches,
+      searchTerm,
+      selectedGeneration,
+      selectedRarity,
+      selectedType,
+      typeMatches,
+    ],
   )
 
   const totalResults = filteredNames.length
   const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE))
   const safeCurrentPage = Math.min(currentPage, totalPages)
   const filtersPending =
-    (selectedType && typeMatches === null) || (selectedGeneration && generationMatches === null)
+    (selectedType && typeMatches === null) ||
+    (selectedGeneration && generationMatches === null) ||
+    (selectedRarity && rarityMatches === null)
 
   useEffect(() => {
     if (loadingCatalog || filtersPending) {
@@ -232,7 +295,6 @@ function App() {
    */
   function handleSearchSubmit(event) {
     event.preventDefault()
-    setPagePokemon([])
     setSearchTerm(searchInput.trim().toLowerCase())
     setCurrentPage(1)
   }
@@ -247,13 +309,14 @@ function App() {
 
     const randomPokemon = catalog[Math.floor(Math.random() * catalog.length)]
     setError('')
-    setPagePokemon([])
     setSearchInput(randomPokemon.name)
     setSearchTerm(randomPokemon.name)
     setSelectedType('')
     setSelectedGeneration('')
     setTypeMatches(null)
     setGenerationMatches(null)
+    setRarityMatches(null)
+    setSelectedRarity('')
     setCurrentPage(1)
   }
 
@@ -261,13 +324,14 @@ function App() {
    * Clears the search term and every active filter in one step.
    */
   function handleClearFilters() {
-    setPagePokemon([])
     setSearchInput('')
     setSearchTerm('')
     setSelectedType('')
     setSelectedGeneration('')
+    setSelectedRarity('')
     setTypeMatches(null)
     setGenerationMatches(null)
+    setRarityMatches(null)
     setCurrentPage(1)
     setError('')
   }
@@ -276,7 +340,6 @@ function App() {
    * Updates the selected type and clears the current results view.
    */
   function handleTypeChange(nextType) {
-    setPagePokemon([])
     setSelectedType(nextType)
     setCurrentPage(1)
   }
@@ -285,8 +348,15 @@ function App() {
    * Updates the selected generation and clears the current results view.
    */
   function handleGenerationChange(nextGeneration) {
-    setPagePokemon([])
     setSelectedGeneration(nextGeneration)
+    setCurrentPage(1)
+  }
+
+  /**
+   * Updates the selected rarity and clears the current results view.
+   */
+  function handleRarityChange(nextRarity) {
+    setSelectedRarity(nextRarity)
     setCurrentPage(1)
   }
 
@@ -301,51 +371,54 @@ function App() {
   return (
     <main className="app-shell">
       <section className="pokedex-app">
-        <SearchPanel
-          loading={loadingCatalog || loadingFilters || loadingPage}
-          onRandomPokemon={handleRandomPokemon}
-          onSearchInputChange={setSearchInput}
-          onSearchSubmit={handleSearchSubmit}
-          searchInput={searchInput}
-          totalResults={totalResults}
-        />
-
-        <div className="controls-grid">
-          <FiltersPanel
+        <div className="pokedex-header">
+          <SearchPanel
+            loading={loadingCatalog || loadingPage || showFilterLoading}
+            onRandomPokemon={handleRandomPokemon}
+            onSearchInputChange={setSearchInput}
+            onSearchSubmit={handleSearchSubmit}
+            searchInput={searchInput}
+            totalResults={totalResults}
+          />
+          
+          <FilterDropdown
             generationOptions={generationOptions}
-            loading={loadingCatalog || loadingFilters}
+            loading={loadingCatalog || showFilterLoading}
             onClearFilters={handleClearFilters}
             onGenerationChange={handleGenerationChange}
+            onRarityChange={handleRarityChange}
             onTypeChange={handleTypeChange}
             selectedGeneration={selectedGeneration}
+            selectedRarity={selectedRarity}
             selectedType={selectedType}
             typeOptions={typeOptions}
+            totalResults={totalResults}
           />
-
-          <section className="panel panel--summary">
-            <p className="eyebrow">Estado</p>
-            <h2>{error ? 'Hay un problema' : 'Tu Pokédex está lista'}</h2>
-            <p className="panel-subtitle">
-              {error ||
-                'Usa la búsqueda para encontrar un Pokémon y combina tipo o generación para afinar la lista.'}
-            </p>
-            <div className="status-cards">
-              <div>
-                <span>Pokémon cargados</span>
-                <strong>{catalog.length.toLocaleString('es-ES')}</strong>
-              </div>
-              <div>
-                <span>Resultados visibles</span>
-                <strong>{totalResults.toLocaleString('es-ES')}</strong>
-              </div>
-            </div>
-          </section>
         </div>
+
+        <section className="panel panel--summary">
+          <p className="eyebrow">Estado</p>
+          <h2>{error ? 'Hay un problema' : 'Tu Pokédex está lista'}</h2>
+          <p className="panel-subtitle">
+            {error ||
+              'Usa la búsqueda para encontrar un Pokémon y combina los filtros de tipo, generación o rareza para afinar la lista.'}
+          </p>
+          <div className="status-cards">
+            <div>
+              <span>Pokémon cargados</span>
+              <strong>{catalog.length.toLocaleString('es-ES')}</strong>
+            </div>
+            <div>
+              <span>Resultados visibles</span>
+              <strong>{totalResults.toLocaleString('es-ES')}</strong>
+            </div>
+          </div>
+        </section>
 
         <PokemonGrid
           currentPage={safeCurrentPage}
           loading={loadingCatalog || loadingPage}
-          loadingFilters={loadingFilters}
+          loadingFilters={showFilterLoading}
           pagePokemon={pagePokemon}
           totalPages={totalPages}
           totalResults={totalResults}

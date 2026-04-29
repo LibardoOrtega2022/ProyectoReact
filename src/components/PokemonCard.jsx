@@ -290,17 +290,6 @@ export default function PokemonCard({ pokemon }) {
             </strong>
           </div>
         </section>
-
-        <section className="pokemon-card__types-row" aria-label="Tipos del Pokémon">
-          {pokemon.types.map(({ type }) => (
-            <span key={type.name} className="type-pill">
-              <span className="type-pill__icon" aria-hidden="true">
-                {getTypeIcon(type.name)}
-              </span>
-              {formatDisplayName(type.name)}
-            </span>
-          ))}
-        </section>
       </div>
     </article>
   )
