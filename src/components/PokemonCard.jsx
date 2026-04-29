@@ -15,32 +15,39 @@ function getTotalStats(stats) {
   return stats.reduce((total, { base_stat }) => total + base_stat, 0)
 }
 
-/**
- * Converts a stat value into a percentage width for the progress bar.
- */
-function getStatWidth(baseStat) {
-  return `${Math.min((baseStat / 255) * 100, 100)}%`
-}
-
-function getMetricIcon(metric) {
+function getTypeIcon(typeName) {
   const icons = {
-    height: '↕',
-    weight: '⚖',
-    experience: '★',
-    power: '⚡',
+    normal: '⚪',
+    fire: '🔥',
+    water: '💧',
+    electric: '⚡',
+    grass: '🌿',
+    ice: '❄',
+    fighting: '✊',
+    poison: '☠',
+    ground: '⛰',
+    flying: '🪽',
+    psychic: '🔮',
+    bug: '🐞',
+    rock: '🪨',
+    ghost: '👻',
+    dragon: '🐉',
+    dark: '🌑',
+    steel: '⚙',
+    fairy: '✨',
   }
 
-  return icons[metric] ?? '•'
+  return icons[typeName] ?? '•'
 }
 
 function getPrimaryTypeTheme(primaryType) {
   const typeThemes = {
-    normal: { accent: '#a8a29e', surface: 'rgba(168, 162, 158, 0.16)', strong: '#78716c' },
-    fire: { accent: '#f97316', surface: 'rgba(249, 115, 22, 0.18)', strong: '#c2410c' },
-    water: { accent: '#3b82f6', surface: 'rgba(59, 130, 246, 0.18)', strong: '#1d4ed8' },
-    electric: { accent: '#eab308', surface: 'rgba(234, 179, 8, 0.18)', strong: '#a16207' },
+    normal: { accent: '#a8a29e', surface: 'rgba(168, 162, 158, 0.12)', strong: '#78716c' },
+    fire: { accent: '#ff6a00', surface: 'rgba(255, 106, 0, 0.22)', strong: '#b33f00' },
+    water: { accent: '#2ea3ff', surface: 'rgba(46, 163, 255, 0.12)', strong: '#0f67b0' },
+    electric: { accent: '#ffd038', surface: 'rgba(255, 208, 56, 0.22)', strong: '#a67f00' },
     grass: { accent: '#22c55e', surface: 'rgba(34, 197, 94, 0.18)', strong: '#15803d' },
-    ice: { accent: '#22d3ee', surface: 'rgba(34, 211, 238, 0.18)', strong: '#0891b2' },
+    ice: { accent: '#9fefff', surface: 'rgba(159, 239, 255, 0.14)', strong: '#0b7b9a' },
     fighting: { accent: '#ef4444', surface: 'rgba(239, 68, 68, 0.18)', strong: '#b91c1c' },
     poison: { accent: '#a855f7', surface: 'rgba(168, 85, 247, 0.18)', strong: '#7e22ce' },
     ground: { accent: '#d97706', surface: 'rgba(217, 119, 6, 0.18)', strong: '#92400e' },
@@ -63,11 +70,21 @@ function getPrimaryTypeTheme(primaryType) {
  */
 export default function PokemonCard({ pokemon }) {
   const [weaknesses, setWeaknesses] = useState([])
+  const [resistances, setResistances] = useState([])
   const [rarityLabel, setRarityLabel] = useState(null)
   const totalStats = getTotalStats(pokemon.stats)
-  const abilities = pokemon.abilities.map(({ ability }) => formatDisplayName(ability.name))
   const primaryType = pokemon.types[0]?.type.name ?? 'normal'
+  const primaryTypeIcon = getTypeIcon(primaryType)
   const typeTheme = getPrimaryTypeTheme(primaryType)
+  const hpStat = pokemon.stats.find(({ stat }) => stat.name === 'hp')?.base_stat ?? 0
+  const attackStat = pokemon.stats.find(({ stat }) => stat.name === 'attack')?.base_stat ?? 0
+  const heightLabel = formatMetric(pokemon.height, 'm')
+  const weightLabel = formatMetric(pokemon.weight, 'kg')
+  const attackName = formatDisplayName(pokemon.moves[0]?.move.name ?? primaryType)
+  const attackDescription = pokemon.moves[0]
+    ? 'Movimiento registrado en PokéAPI.'
+    : 'Sin movimientos registrados en la PokéAPI.'
+  const retreatCost = Math.min(4, Math.max(1, Math.round((pokemon.weight || 10) / 40)))
 
   useEffect(() => {
     let active = true
@@ -98,6 +115,11 @@ export default function PokemonCard({ pokemon }) {
           .filter((w) => w.multiplier > 1)
           .sort((a, b) => b.multiplier - a.multiplier)
 
+        const resistanceList = Object.entries(multiplier)
+          .map(([name, mult]) => ({ name, multiplier: mult }))
+          .filter((w) => w.multiplier > 0 && w.multiplier < 1)
+          .sort((a, b) => a.multiplier - b.multiplier)
+
         // Fetch species info to determine rarity (capture_rate, legendary)
         const speciesName = pokemon.species?.name
         let rarity = null
@@ -117,6 +139,7 @@ export default function PokemonCard({ pokemon }) {
 
         if (!active) return
         setWeaknesses(weaknessList)
+        setResistances(resistanceList)
         setRarityLabel(rarity)
       } catch {
         // ignore extras failure silently
@@ -132,130 +155,111 @@ export default function PokemonCard({ pokemon }) {
   return (
     <article
       className="pokemon-card"
+      data-rarity={rarityLabel || ''}
       style={{
         '--pokemon-accent': typeTheme.accent,
         '--pokemon-surface': typeTheme.surface,
         '--pokemon-strong': typeTheme.strong,
       }}
     >
-      <div className="pokemon-card__media">
-        <div className="pokemon-card__aurora" aria-hidden="true" />
-        <span className="pokemon-card__id">#{String(pokemon.id).padStart(3, '0')}</span>
-        <img
-          className="pokemon-card__sprite"
-          src={getPokemonArtworkUrl(pokemon)}
-          alt={pokemon.name}
-          loading="lazy"
-        />
-      </div>
-
-      <div className="pokemon-card__body">
-        <div className="pokemon-card__title-row">
-          <div>
-            <p className="eyebrow">Pokémon</p>
-            <h3 className="pokemon-card__title">{formatDisplayName(pokemon.name)}</h3>
+      <div className="pokemon-card__shell">
+        <header className="pokemon-card__header">
+          <div className="pokemon-card__title-wrap">
+            <h3 className="pokemon-card__rarity">{rarityLabel}</h3>
+            {rarityLabel && <span className="pokemon-card__title">{formatDisplayName(pokemon.name)} </span>}
           </div>
-            <div className="pokemon-card__types">
-              {pokemon.types.map(({ type }) => (
-                <span key={type.name} className="type-pill">
-                  {formatDisplayName(type.name)}
+          <div className="pokemon-card__hp">
+            <span className="pokemon-card__hp-label">PS</span>
+            <strong>{hpStat}</strong>
+            <span className="pokemon-card__energy-badge" aria-hidden="true">
+              {primaryTypeIcon}
+            </span>
+          </div>
+        </header>
+
+        <div className="pokemon-card__art-frame">
+          <div className="pokemon-card__art-surface" aria-hidden="true" />
+          <img
+            className="pokemon-card__sprite"
+            src={getPokemonArtworkUrl(pokemon)}
+            alt={pokemon.name}
+            loading="lazy"
+          />
+          <div className="pokemon-card__art-badge" aria-hidden="true">
+            <span>{primaryTypeIcon}</span>
+          </div>
+        </div>
+
+        <div className="pokemon-card__info-strip">
+          <span>N.º {String(pokemon.id).padStart(3, '0')}</span>
+          <span>Altura {heightLabel}</span>
+          <span>Peso {weightLabel}</span>
+        </div>
+
+        <section className="pokemon-card__attack-panel">
+          <div className="pokemon-card__attack-energy" aria-hidden="true">
+            {pokemon.types.map(({ type }) => (
+              <span key={type.name}>{getTypeIcon(type.name)}</span>
+            ))}
+          </div>
+          <div className="pokemon-card__attack-copy">
+            <div className="section-title-row">
+              <h4>{attackName}</h4>
+              <strong>{attackStat || Math.max(10, Math.round(totalStats / 4))}</strong>
+            </div>
+            <p>{attackDescription}</p>
+          </div>
+        </section>
+
+        <section className="pokemon-card__footer-row">
+          <div className="pokemon-card__footer-pill">
+            <span>Debilidad</span>
+            <strong>
+              {weaknesses.length === 0
+                ? 'Ninguna'
+                : weaknesses.map((w) => (
+                    <span key={w.name} className="pokemon-card__inline-type">
+                      <i aria-hidden="true">{getTypeIcon(w.name)}</i>
+                      <em>x{w.multiplier}</em>
+                    </span>
+                  ))}
+            </strong>
+          </div>
+          <div className="pokemon-card__footer-pill">
+            <span>Resistencia</span>
+            <strong>
+              {resistances.length === 0
+                ? 'Sin datos'
+                : resistances.slice(0, 2).map((r) => (
+                    <span key={r.name} className="pokemon-card__inline-type pokemon-card__inline-type--resist">
+                      <i aria-hidden="true">{getTypeIcon(r.name)}</i>
+
+                      <em>x{r.multiplier}</em>
+                    </span>
+                  ))}
+            </strong>
+          </div>
+          <div className="pokemon-card__footer-pill">
+            <span>Retirada</span>
+            <strong>
+              {Array.from({ length: retreatCost }).map((_, index) => (
+                <span key={index} className="pokemon-card__retreat-energy" aria-hidden="true">
+                  {primaryTypeIcon}
                 </span>
               ))}
-              {rarityLabel && <span className="rarity-badge">{rarityLabel}</span>}
-            </div>
-        </div>
-
-          <div className="pokemon-card__meta pokemon-card__meta--summary">
-          <div className="pokemon-card__metric-card">
-            <div className="pokemon-card__metric-head">
-                {getMetricIcon('height')}
-              <span>Altura</span>
-            </div>
-            <strong>{formatMetric(pokemon.height, 'm')}</strong>
-          </div>
-          <div className="pokemon-card__metric-card">
-            <div className="pokemon-card__metric-head">
-                {getMetricIcon('weight')}
-              <span>Peso</span>
-            </div>
-            <strong>{formatMetric(pokemon.weight, 'kg')}</strong>
-          </div>
-          <div className="pokemon-card__metric-card">
-            <div className="pokemon-card__metric-head">
-                {getMetricIcon('experience')}
-              <span>Exp. base</span>
-            </div>
-            <strong>{pokemon.base_experience}</strong>
-          </div>
-          <div className="pokemon-card__metric-card">
-            <div className="pokemon-card__metric-head">
-                {getMetricIcon('power')}
-              <span>Poder total</span>
-            </div>
-            <strong>{totalStats}</strong>
-          </div>
-        </div>
-        <section className="pokemon-card__section pokemon-card__section--weaknesses">
-          <div className="section-title-row">
-            <h4>Debilidades</h4>
-            <span>{weaknesses.length} tipos</span>
-          </div>
-          <div className="weakness-list">
-            {weaknesses.length === 0 ? (
-              <span className="weakness-pill">Ninguna notable</span>
-            ) : (
-              weaknesses.map((w) => (
-                <span key={w.name} className="weakness-pill">
-                  {formatDisplayName(w.name)} x{w.multiplier}
-                </span>
-              ))
-            )}
+            </strong>
           </div>
         </section>
 
-        <section className="pokemon-card__section">
-          <div className="section-title-row">
-            <h4>Habilidades</h4>
-            <span>{abilities.length} activas</span>
-          </div>
-          <div className="ability-list">
-            {abilities.map((ability) => (
-              <span key={ability} className="ability-pill">
-                {ability}
+        <section className="pokemon-card__types-row" aria-label="Tipos del Pokémon">
+          {pokemon.types.map(({ type }) => (
+            <span key={type.name} className="type-pill">
+              <span className="type-pill__icon" aria-hidden="true">
+                {getTypeIcon(type.name)}
               </span>
-            ))}
-          </div>
-        </section>
-
-        <section className="pokemon-card__section">
-          <div className="section-title-row">
-            <h4>Estadísticas</h4>
-            <span>{pokemon.stats.length} métricas</span>
-          </div>
-          <div className="pokemon-card__stats">
-            {pokemon.stats.map(({ stat, base_stat }) => (
-              <div key={stat.name} className="card-stat card-stat--bar">
-                <div className="card-stat__header">
-                  <span>{formatDisplayName(stat.name)}</span>
-                  <strong>{base_stat}</strong>
-                </div>
-                <div className="card-stat__bar" aria-hidden="true">
-                  <div className="card-stat__bar-fill" style={{ width: getStatWidth(base_stat) }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="pokemon-card__section pokemon-card__section--moves">
-          <div className="section-title-row">
-            <h4>Movimientos</h4>
-            <span>{pokemon.moves.length} disponibles</span>
-          </div>
-          <div className="move-count">
-            <strong>{pokemon.moves.length}</strong>
-            <span>movimientos registrados en PokéAPI</span>
-          </div>
+              {formatDisplayName(type.name)}
+            </span>
+          ))}
         </section>
       </div>
     </article>
