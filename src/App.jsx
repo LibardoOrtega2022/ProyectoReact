@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   fetchPokemonCatalog,
@@ -15,6 +15,9 @@ import SearchPanel from './components/SearchPanel'
 
 const PAGE_SIZE = 12
 
+/**
+ * Combines search text and active filters into the list of visible Pokémon names.
+ */
 function buildFilteredNames(
   catalog,
   searchTerm,
@@ -158,45 +161,43 @@ function App() {
     }
   }, [selectedType, selectedGeneration])
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, selectedType, selectedGeneration])
-
-  const filteredNames = buildFilteredNames(
-    catalog,
-    searchTerm,
-    selectedType,
-    typeMatches,
-    selectedGeneration,
-    generationMatches,
+  const filteredNames = useMemo(
+    () =>
+      buildFilteredNames(
+        catalog,
+        searchTerm,
+        selectedType,
+        typeMatches,
+        selectedGeneration,
+        generationMatches,
+      ),
+    [catalog, generationMatches, searchTerm, selectedGeneration, selectedType, typeMatches],
   )
-  const filteredNamesKey = filteredNames.join('|')
+
   const totalResults = filteredNames.length
   const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
   const filtersPending =
     (selectedType && typeMatches === null) || (selectedGeneration && generationMatches === null)
 
   useEffect(() => {
     if (loadingCatalog || filtersPending) {
-      setLoadingPage(false)
-      setPagePokemon([])
       return
     }
 
-    const startIndex = (currentPage - 1) * PAGE_SIZE
+    const startIndex = (safeCurrentPage - 1) * PAGE_SIZE
     const namesForPage = filteredNames.slice(startIndex, startIndex + PAGE_SIZE)
 
     if (namesForPage.length === 0) {
-      setLoadingPage(false)
-      setPagePokemon([])
       return
     }
 
     let active = true
-    setLoadingPage(true)
-    setError('')
 
     async function loadPagePokemon() {
+      setLoadingPage(true)
+      setError('')
+
       try {
         const details = await fetchPokemonDetailsByNames(namesForPage)
 
@@ -224,20 +225,21 @@ function App() {
     return () => {
       active = false
     }
-  }, [catalog, currentPage, filteredNamesKey, filtersPending, loadingCatalog])
+  }, [filteredNames, filtersPending, loadingCatalog, safeCurrentPage])
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [currentPage, totalPages])
-
+  /**
+   * Applies the current text query as the active search term.
+   */
   function handleSearchSubmit(event) {
     event.preventDefault()
+    setPagePokemon([])
     setSearchTerm(searchInput.trim().toLowerCase())
     setCurrentPage(1)
   }
 
+  /**
+   * Picks a random Pokémon from the loaded catalog and resets the filters.
+   */
   function handleRandomPokemon() {
     if (catalog.length === 0) {
       return
@@ -245,6 +247,7 @@ function App() {
 
     const randomPokemon = catalog[Math.floor(Math.random() * catalog.length)]
     setError('')
+    setPagePokemon([])
     setSearchInput(randomPokemon.name)
     setSearchTerm(randomPokemon.name)
     setSelectedType('')
@@ -254,7 +257,11 @@ function App() {
     setCurrentPage(1)
   }
 
+  /**
+   * Clears the search term and every active filter in one step.
+   */
   function handleClearFilters() {
+    setPagePokemon([])
     setSearchInput('')
     setSearchTerm('')
     setSelectedType('')
@@ -265,6 +272,27 @@ function App() {
     setError('')
   }
 
+  /**
+   * Updates the selected type and clears the current results view.
+   */
+  function handleTypeChange(nextType) {
+    setPagePokemon([])
+    setSelectedType(nextType)
+    setCurrentPage(1)
+  }
+
+  /**
+   * Updates the selected generation and clears the current results view.
+   */
+  function handleGenerationChange(nextGeneration) {
+    setPagePokemon([])
+    setSelectedGeneration(nextGeneration)
+    setCurrentPage(1)
+  }
+
+  /**
+   * Clamps the requested page number to the available page range.
+   */
   function handlePageChange(nextPage) {
     const safePage = Math.min(Math.max(nextPage, 1), totalPages)
     setCurrentPage(safePage)
@@ -287,8 +315,8 @@ function App() {
             generationOptions={generationOptions}
             loading={loadingCatalog || loadingFilters}
             onClearFilters={handleClearFilters}
-            onGenerationChange={setSelectedGeneration}
-            onTypeChange={setSelectedType}
+            onGenerationChange={handleGenerationChange}
+            onTypeChange={handleTypeChange}
             selectedGeneration={selectedGeneration}
             selectedType={selectedType}
             typeOptions={typeOptions}
@@ -315,7 +343,7 @@ function App() {
         </div>
 
         <PokemonGrid
-          currentPage={currentPage}
+          currentPage={safeCurrentPage}
           loading={loadingCatalog || loadingPage}
           loadingFilters={loadingFilters}
           pagePokemon={pagePokemon}
@@ -323,7 +351,7 @@ function App() {
           totalResults={totalResults}
         />
 
-        <Pagination currentPage={currentPage} onPageChange={handlePageChange} totalPages={totalPages} />
+        <Pagination currentPage={safeCurrentPage} onPageChange={handlePageChange} totalPages={totalPages} />
       </section>
     </main>
   )
