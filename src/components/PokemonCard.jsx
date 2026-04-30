@@ -108,8 +108,8 @@ export default function PokemonCard({ pokemon }) {
   const weightLabel = formatMetric(pokemon.weight, 'kg')
   const attackName = formatDisplayName(pokemon.moves[0]?.move.name ?? primaryType)
   const attackDescription = pokemon.moves[0]
-    ? 'Movimiento registrado en PokéAPI.'
-    : 'Sin movimientos registrados en la PokéAPI.'
+    ? 'Movimiento registrado.'
+    : 'Sin movimientos registrados'
   const retreatCost = Math.min(4, Math.max(1, Math.round((pokemon.weight || 10) / 40)))
 
   useEffect(() => {
@@ -202,7 +202,7 @@ export default function PokemonCard({ pokemon }) {
         <div className="pokemon-card__art-frame">
           <div className="pokemon-card__art-surface" aria-hidden="true" />
           <img
-            className="pokemon-card__sprite"
+            className={`pokemon-card__sprite pokemon-card__sprite--${getRarityBadgeVariant(rarityLabel)}`}
             src={getPokemonArtworkUrl(pokemon)}
             alt={pokemon.name}
             loading="lazy"
