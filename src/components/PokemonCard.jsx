@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatDisplayName, getPokemonArtworkUrl, fetchTypeData, fetchSpeciesData } from '../api/pokeapi'
+import { formatDisplayName, getPokemonArtworkUrl, fetchTypeData, fetchSpeciesData, getRarityLabelFromSpecies } from '../api/pokeapi'
 
 /**
  * Formats PokéAPI metric values into readable units.
@@ -151,16 +151,7 @@ export default function PokemonCard({ pokemon }) {
         let rarity = null
         if (speciesName) {
           const species = await fetchSpeciesData(speciesName)
-          if (species.is_legendary || species.is_mythical) {
-            rarity = 'Legendario'
-          } else {
-            const capture = species.capture_rate ?? 0
-            if (capture >= 200) rarity = 'Común'
-            else if (capture >= 100) rarity = 'Poco común'
-            else if (capture >= 50) rarity = 'Raro'
-            else if (capture >= 11) rarity = 'Muy raro'
-            else rarity = 'Extremadamente raro'
-          }
+          rarity = getRarityLabelFromSpecies(species)
         }
 
         if (!active) return
