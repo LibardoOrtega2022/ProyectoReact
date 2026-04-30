@@ -380,7 +380,7 @@ function App() {
             searchInput={searchInput}
             totalResults={totalResults}
           />
-          
+
           <FilterDropdown
             generationOptions={generationOptions}
             loading={loadingCatalog || showFilterLoading}
@@ -396,25 +396,6 @@ function App() {
           />
         </div>
 
-        <section className="panel panel--summary">
-          <p className="eyebrow">Estado</p>
-          <h2>{error ? 'Hay un problema' : 'Tu Pokédex está lista'}</h2>
-          <p className="panel-subtitle">
-            {error ||
-              'Usa la búsqueda para encontrar un Pokémon y combina los filtros de tipo, generación o rareza para afinar la lista.'}
-          </p>
-          <div className="status-cards">
-            <div>
-              <span>Pokémon cargados</span>
-              <strong>{catalog.length.toLocaleString('es-ES')}</strong>
-            </div>
-            <div>
-              <span>Resultados visibles</span>
-              <strong>{totalResults.toLocaleString('es-ES')}</strong>
-            </div>
-          </div>
-        </section>
-
         <PokemonGrid
           currentPage={safeCurrentPage}
           loading={loadingCatalog || loadingPage}
@@ -425,6 +406,50 @@ function App() {
         />
 
         <Pagination currentPage={safeCurrentPage} onPageChange={handlePageChange} totalPages={totalPages} />
+
+        <footer className="site-footer panel">
+          <div className="site-footer__brand">
+            <p className="eyebrow">Entrenador digital</p>
+            <h2>Pokédex Atlas</h2>
+            <p>
+              {error
+                ? `Estado: ${error}`
+                : `Catalogo activo: ${catalog.length.toLocaleString('es-ES')} Pokemon.`}
+            </p>
+          </div>
+
+          <div className="site-footer__social" aria-label="Redes sociales">
+            <a
+              href="https://www.instagram.com/pokemon"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Instagram de Pokemon"
+            >
+              IG
+            </a>
+            <a href="https://x.com/Pokemon" target="_blank" rel="noreferrer" aria-label="X de Pokemon">
+              X
+            </a>
+            <a
+              href="https://www.youtube.com/@pokemon"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="YouTube de Pokemon"
+            >
+              YT
+            </a>
+            <a
+              href="https://github.com/PokeAPI/pokeapi"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Repositorio de PokeAPI"
+            >
+              GH
+            </a>
+          </div>
+
+          <p className="site-footer__copy">© 2026 Pokédex Atlas. Datos provistos por PokéAPI.</p>
+        </footer>
       </section>
     </main>
   )

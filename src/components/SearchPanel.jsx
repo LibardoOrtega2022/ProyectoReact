@@ -16,8 +16,8 @@ export default function SearchPanel({
           <p className="eyebrow">PokéAPI + React</p>
           <h1>Pokédex</h1>
           <p className="intro">
-            Busca por nombre o número, filtra por tipo o generación y recorre los
-            resultados por páginas.
+            Explora criaturas, descubre rarezas y filtra por tipo o generación en una
+            experiencia visual más viva.
           </p>
         </div>
         <span className="results-pill">{totalResults.toLocaleString('es-ES')} resultados</span>
@@ -27,15 +27,20 @@ export default function SearchPanel({
         <label className="sr-only" htmlFor="pokemon-search">
           Buscar Pokémon
         </label>
-        <input
-          id="pokemon-search"
-          type="text"
-          autoComplete="off"
-          spellCheck="false"
-          value={searchInput}
-          onChange={(event) => onSearchInputChange(event.target.value)}
-          placeholder="Ej: pikachu o 25"
-        />
+        <div className="search-bar__input-wrap">
+          <span className="search-bar__icon" aria-hidden="true">
+            POKEDEX
+          </span>
+          <input
+            id="pokemon-search"
+            type="text"
+            autoComplete="off"
+            spellCheck="false"
+            value={searchInput}
+            onChange={(event) => onSearchInputChange(event.target.value)}
+            placeholder="Ej: pikachu o 25"
+          />
+        </div>
         <button type="submit" disabled={loading}>
           {loading ? 'Cargando...' : 'Buscar'}
         </button>
@@ -46,6 +51,12 @@ export default function SearchPanel({
           Pokémon aleatorio
         </button>
         <span className="hint">Prueba con charizard, bulbasaur o 150.</span>
+      </div>
+
+      <div className="quick-tags" aria-hidden="true">
+        <span>Top: pikachu</span>
+        <span>Top: mew</span>
+        <span>Top: garchomp</span>
       </div>
     </section>
   )
