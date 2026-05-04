@@ -9,6 +9,12 @@ import {
   fetchPokemonNamesByType,
   fetchPokemonTypeOptions,
 } from './api/pokeapi'
+import {
+  REGIONS,
+  fetchPokemonByRegion,
+  fetchPokemonByLocation,
+  fetchAllLocations,
+} from './api/pokemon-details'
 import FilterDropdown from './components/FilterDropdown'
 import Pagination from './components/Pagination'
 import PokemonGrid from './components/PokemonGrid'
@@ -16,6 +22,7 @@ import SearchPanel from './components/SearchPanel'
 import PokemonModal from './components/PokemonModal'
 import MoveDetail from './components/MoveDetail'
 import AbilityDetail from './components/AbilityDetail'
+import RegionPokemonItem from './components/RegionPokemonItem'
 
 const PAGE_SIZE = 12
 
@@ -73,6 +80,18 @@ function buildFilteredNames(
   return filteredNames
 }
 
+/**
+ * Format raw location id (e.g. "cerulean-city-area") into a human friendly string
+ */
+function formatLocationName(raw) {
+  if (!raw) return ''
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .split(' ')
+    .map((w) => (w.length === 0 ? w : w[0].toUpperCase() + w.slice(1)))
+    .join(' ')
+}
+
 function App() {
   const [catalog, setCatalog] = useState([])
   const [typeOptions, setTypeOptions] = useState([])
@@ -102,6 +121,15 @@ function App() {
   const [selectedListItem, setSelectedListItem] = useState(null) // { type, name, detail }
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [selectedPokemonName, setSelectedPokemonName] = useState(null) // for modal
+
+  // Region & Location filter states
+  const [selectedRegion, setSelectedRegion] = useState('')
+  const [selectedLocation, setSelectedLocation] = useState('')
+  const [locationQuery, setLocationQuery] = useState('')
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false)
+  const [regionPokemon, setRegionPokemon] = useState([])
+  const [locationPokemon, setLocationPokemon] = useState([])
+  const [allLocations, setAllLocations] = useState([])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -185,6 +213,76 @@ function App() {
       active = false
     }
   }, [activePanel, movesList.length, abilitiesList.length])
+
+  // Load locations when regions panel opens
+  useEffect(() => {
+    if (activePanel !== 'regions') return
+
+    let active = true
+
+    async function loadLocations() {
+      try {
+        const locations = await fetchAllLocations()
+        if (!active) return
+        setAllLocations(locations)
+      } catch {
+        // ignore
+      }
+    }
+
+    void loadLocations()
+    return () => {
+      active = false
+    }
+  }, [activePanel])
+
+  // Load pokemon when region is selected
+  useEffect(() => {
+    if (!selectedRegion) {
+      return
+    }
+
+    let active = true
+
+    async function loadRegionPokemon() {
+      try {
+        const pokemonNames = await fetchPokemonByRegion(selectedRegion)
+        if (!active) return
+        setRegionPokemon(pokemonNames)
+      } catch {
+        if (active) setRegionPokemon([])
+      }
+    }
+
+    void loadRegionPokemon()
+    return () => {
+      active = false
+    }
+  }, [selectedRegion])
+
+  // Load pokemon when location is selected
+  useEffect(() => {
+    if (!selectedLocation) {
+      return
+    }
+
+    let active = true
+
+    async function loadLocationPokemon() {
+      try {
+        const pokemonNames = await fetchPokemonByLocation(selectedLocation)
+        if (!active) return
+        setLocationPokemon(pokemonNames)
+      } catch {
+        if (active) setLocationPokemon([])
+      }
+    }
+
+    void loadLocationPokemon()
+    return () => {
+      active = false
+    }
+  }, [selectedLocation])
 
   /**
    * Opens a panel and resets list UI state
@@ -382,13 +480,14 @@ function App() {
         e.preventDefault()
         focusable[focusable.length - 1].focus()
         break
-      case 'Escape':
+      case 'Escape': {
         e.preventDefault()
         setOpenTopMenu(null)
         // return focus to the toggle
         const toggle = navRef.current.querySelector('.menu-toggle[aria-expanded="true"]')
         toggle?.focus()
         break
+      }
       case 'Enter':
         if (activeIndex >= 0) {
           e.preventDefault()
@@ -526,6 +625,7 @@ function App() {
                     <li>
                       <button type="button" onClick={() => { setOpenTopMenu(null); openPanel('moves')}}>Lista de movimientos</button>
                       <button type="button" onClick={() => { setOpenTopMenu(null); openPanel('abilities')}}>Lista de habilidades</button>
+                      <button type="button" onClick={() => { setOpenTopMenu(null); openPanel('regions')}}>Regiones y Localidades</button>
                     </li>
                   </ul>
                 </li>
@@ -566,6 +666,7 @@ function App() {
                       {activePanel === 'pokemon' && '🔍 Pokémon'}
                       {activePanel === 'moves' && '⚡ Movimientos'}
                       {activePanel === 'abilities' && '✨ Habilidades'}
+                      {activePanel === 'regions' && '🌍 Regiones y Localidades'}
                     </h2>
                   </div>
                   <button
@@ -585,7 +686,27 @@ function App() {
                     <p>Cargando...</p>
                   ) : (
                     <>
-                      {selectedListItem && (
+                      {selectedListItem && activePanel === 'regions' && (
+                        <div className="region-pokemon-detail">
+                          <button 
+                            className="region-pokemon-close"
+                            onClick={() => setSelectedListItem(null)}
+                            title="Cerrar"
+                          >
+                            ✕
+                          </button>
+                          <h3>{selectedListItem.name}</h3>
+                          <img
+                            src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/pokemon/other/official-artwork/${selectedListItem.name}.png`}
+                            alt={selectedListItem.name}
+                            className="region-pokemon-image"
+                            onError={(e) => {
+                              e.target.src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/pokemon/${selectedListItem.name}.png`
+                            }}
+                          />
+                        </div>
+                      )}
+                      {selectedListItem && activePanel !== 'regions' && (
                         <div className="lists-panel__detail">
                           <div className="lists-panel__detail-head">
                             <h3>{selectedListItem.name}</h3>
@@ -597,6 +718,83 @@ function App() {
                       )}
 
                       <div className="lists-panel__items">
+                        {activePanel === 'regions' && (
+                          <div className="region-filters">
+                            <div className="region-filter-group">
+                              <label className="region-filter-label">Región:</label>
+                              <select
+                                value={selectedRegion}
+                                onChange={(e) => {
+                                  setSelectedRegion(e.target.value)
+                                  setSelectedLocation('')
+                                  setListFilter('')
+                                  setListPage(1)
+                                }}
+                                className="region-filter-select"
+                              >
+                                <option value="">Todas las regiones</option>
+                                {REGIONS.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="region-filter-group">
+                              <label className="region-filter-label">Localidad:</label>
+                              <div className="region-location-input-wrap">
+                                <input
+                                  type="text"
+                                  value={locationQuery}
+                                  onChange={(e) => {
+                                    setLocationQuery(e.target.value)
+                                    setLocationDropdownOpen(true)
+                                  }}
+                                  onFocus={() => setLocationDropdownOpen(true)}
+                                  placeholder="Busca o selecciona una localidad..."
+                                  className="region-filter-select"
+                                />
+
+                                {locationDropdownOpen && (
+                                  <ul className="region-locations-dropdown" role="listbox">
+                                    <li
+                                      className="region-location-item"
+                                      onClick={() => {
+                                        setSelectedLocation('')
+                                        setLocationQuery('')
+                                        setLocationDropdownOpen(false)
+                                        setListPage(1)
+                                      }}
+                                    >
+                                      Todas las localidades
+                                    </li>
+                                    {allLocations
+                                      .filter((l) =>
+                                        formatLocationName(l).toLowerCase().includes((locationQuery || '').toLowerCase()),
+                                      )
+                                      .slice(0, 100)
+                                      .map((loc) => (
+                                        <li
+                                          key={loc}
+                                          className="region-location-item"
+                                          onClick={() => {
+                                            setSelectedLocation(loc)
+                                            setLocationQuery(formatLocationName(loc))
+                                            setLocationDropdownOpen(false)
+                                            setListPage(1)
+                                          }}
+                                        >
+                                          {formatLocationName(loc)}
+                                        </li>
+                                      ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="lists-panel__filter-section">
                           <label className="lists-panel__filter-label">Filtrar:</label>
                           <input
@@ -613,12 +811,20 @@ function App() {
 
                         <ul className="lists-panel__list">
                           {(() => {
-                            const currentArray =
+                            let currentArray =
                               activePanel === 'pokemon'
                                 ? catalog.map((p) => p.name)
                                 : activePanel === 'moves'
                                 ? movesList
-                                : abilitiesList
+                                : activePanel === 'abilities'
+                                ? abilitiesList
+                                : activePanel === 'regions'
+                                ? selectedRegion
+                                  ? regionPokemon
+                                  : selectedLocation
+                                  ? locationPokemon
+                                  : catalog.map((p) => p.name)
+                                : []
 
                             const lowerFilter = (listFilter || '').toLowerCase()
                             const filtered = currentArray.filter((n) => (n || '').toLowerCase().includes(lowerFilter))
@@ -633,6 +839,15 @@ function App() {
                               )
                             }
 
+                            if (activePanel === 'regions') {
+                              return slice.map((name) => (
+                                <RegionPokemonItem
+                                  key={name}
+                                  pokemonName={name}
+                                />
+                              ))
+                            }
+
                             return slice.map((name) => (
                               <li key={name} className="lists-panel__list-item">
                                 <div className="lists-panel__item-head">
@@ -642,6 +857,11 @@ function App() {
                                     onClick={async () => {
                                       if (activePanel === 'pokemon') {
                                         setSelectedPokemonName(name)
+                                        return
+                                      }
+
+                                      if (activePanel === 'regions') {
+                                        setSelectedListItem({ type: 'pokemon', name })
                                         return
                                       }
 
@@ -673,6 +893,11 @@ function App() {
                                     onClick={async () => {
                                       if (activePanel === 'pokemon') {
                                         setSelectedPokemonName(name)
+                                        return
+                                      }
+
+                                      if (activePanel === 'regions') {
+                                        setSelectedListItem({ type: 'pokemon', name })
                                         return
                                       }
 
@@ -824,3 +1049,10 @@ function App() {
 }
 
 export default App
+
+
+
+
+
+
+
