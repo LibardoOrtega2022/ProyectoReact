@@ -257,3 +257,122 @@ export async function fetchMoveDetail(moveName) {
 export async function fetchAbilityDetail(abilityName) {
   return requestJson(`/ability/${encodeURIComponent(abilityName)}`)
 }
+
+/**
+ * Translation maps for move and ability details from PokéAPI
+ */
+const typeTranslations = {
+  normal: 'Normal',
+  fire: 'Fuego',
+  water: 'Agua',
+  electric: 'Eléctrico',
+  grass: 'Planta',
+  ice: 'Hielo',
+  fighting: 'Lucha',
+  poison: 'Veneno',
+  ground: 'Tierra',
+  flying: 'Volador',
+  psychic: 'Psíquico',
+  bug: 'Bicho',
+  rock: 'Roca',
+  ghost: 'Fantasma',
+  dragon: 'Dragón',
+  dark: 'Siniestro',
+  steel: 'Acero',
+  fairy: 'Hada',
+  unknown: 'Desconocido',
+  shadow: 'Sombra',
+}
+
+const damageClassTranslations = {
+  physical: 'Físico',
+  special: 'Especial',
+  status: 'Estado',
+}
+
+/**
+ * Extracts the effect description from a move or ability with language metadata.
+ * Note: PokéAPI typically provides effect_entries only in English ('en') and French ('fr') for moves/abilities.
+ * Spanish translations are not available from the API.
+ * 
+ * Returns: { text: string, languageCode: string, isSpanish: boolean }
+ * Fallback chain: Spanish (if available) → English → French → any available → default message
+ */
+export function getSpanishEffect(effectEntries) {
+  if (!Array.isArray(effectEntries) || effectEntries.length === 0) {
+    return {
+      text: 'Sin descripción disponible',
+      languageCode: null,
+      isSpanish: false,
+    }
+  }
+
+  // First priority: Spanish (es) - though typically not available for effects
+  const spanishEntry = effectEntries.find((entry) => entry.language?.name === 'es')
+  if (spanishEntry?.effect) {
+    return {
+      text: spanishEntry.effect,
+      languageCode: 'es',
+      isSpanish: true,
+    }
+  }
+
+  // Second priority: English (en) - most commonly available
+  const englishEntry = effectEntries.find((entry) => entry.language?.name === 'en')
+  if (englishEntry?.effect) {
+    return {
+      text: englishEntry.effect,
+      languageCode: 'en',
+      isSpanish: false,
+    }
+  }
+
+  // Third priority: French (fr) - sometimes available
+  const frenchEntry = effectEntries.find((entry) => entry.language?.name === 'fr')
+  if (frenchEntry?.effect) {
+    return {
+      text: frenchEntry.effect,
+      languageCode: 'fr',
+      isSpanish: false,
+    }
+  }
+
+  // Last resort: take first available entry
+  if (effectEntries[0]?.effect) {
+    return {
+      text: effectEntries[0].effect,
+      languageCode: effectEntries[0].language?.name || null,
+      isSpanish: false,
+    }
+  }
+
+  return {
+    text: 'Sin descripción disponible',
+    languageCode: null,
+    isSpanish: false,
+  }
+}
+
+/**
+ * Translates a Pokémon type name to Spanish.
+ */
+export function getSpanishTypeName(typeName) {
+  const normalized = (typeName || 'unknown').toLowerCase()
+  return typeTranslations[normalized] || formatDisplayName(normalized)
+}
+
+/**
+ * Translates a damage class (physical/special/status) to Spanish.
+ */
+export function getSpanishDamageClass(damageClassName) {
+  const normalized = (damageClassName || 'status').toLowerCase()
+  return damageClassTranslations[normalized] || formatDisplayName(normalized)
+}
+
+/**
+ * Translates an ability name (formats and translates if known).
+ * Ability names from PokéAPI are already lowercase with hyphens.
+ */
+export function getSpanishAbilityName(abilityName) {
+  return formatDisplayName(abilityName || 'Unknown')
+}
