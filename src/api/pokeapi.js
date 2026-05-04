@@ -26,10 +26,55 @@ export function formatDisplayName(value) {
 }
 
 /**
- * Returns the best artwork URL available for a Pokémon entry.
+ * Returns the primary artwork URL for a Pokémon entry.
+ * Prefer official artwork, fallback to front_default.
  */
 export function getPokemonArtworkUrl(pokemon) {
   return pokemon.sprites.other?.['official-artwork']?.front_default || pokemon.sprites.front_default || ''
+}
+
+/**
+ * Returns an array of artwork URLs in priority order for fallback handling.
+ * If the primary URL fails to load, the app can try the next one in sequence.
+ */
+export function getPokemonArtworkUrlWithFallbacks(pokemon) {
+  const urls = []
+  const pokemonName = pokemon.name.toLowerCase()
+
+  // 1. Official artwork from PokéAPI (best quality, but sometimes slow)
+  if (pokemon.sprites.other?.['official-artwork']?.front_default) {
+    urls.push(pokemon.sprites.other['official-artwork'].front_default)
+  }
+
+  // 2. jsDelivr CDN mirror of PokéAPI sprites (fast and reliable)
+  urls.push(`https://cdn.jsdelivr.net/npm/pokémon-icons@2.0.0/sprites/pokemon/other/official-artwork/${pokemon.id}.png`)
+
+  // 3. Alternate jsDelivr CDN source
+  urls.push(`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemon.id}.png`)
+
+  // 4. PokéAPI front default sprite
+  if (pokemon.sprites.front_default) {
+    urls.push(pokemon.sprites.front_default)
+  }
+
+  // 5. Pokémon Showdown alternative sprite (reliable fallback)
+  urls.push(`https://raw.githubusercontent.com/smogon/pokemon-showdown/master/public/sprites/pokemon/${pokemonName}.png`)
+
+  // 6. Alternative jsDelivr source for standard sprite
+  urls.push(`https://cdn.jsdelivr.net/npm/pokémon-icons@2.0.0/sprites/pokemon/${pokemon.id}.png`)
+
+  return urls.filter((url) => url) // Remove empty strings
+}
+
+/**
+ * Generates an SVG placeholder for a Pokémon when all images fail to load.
+ * Shows Pokémon ID and name as fallback.
+ */
+export function getPokemonPlaceholderSvg(pokemon) {
+  const pokemonId = String(pokemon.id).padStart(3, '0')
+  const pokemonName = pokemon.name.toUpperCase()
+
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect fill='%23f5f5f5' width='200' height='200'/%3E%3Ccircle cx='100' cy='60' r='35' fill='%23ddd'/%3E%3Ctext x='100' y='140' text-anchor='middle' font-size='18' font-weight='bold' fill='%23666'%3E%23${pokemonId}%3C/text%3E%3Ctext x='100' y='165' text-anchor='middle' font-size='12' fill='%23999'%3E${pokemonName}%3C/text%3E%3C/svg%3E`
 }
 
 /**

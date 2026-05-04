@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   formatDisplayName,
-  getPokemonArtworkUrl,
+  getPokemonArtworkUrlWithFallbacks,
+  getPokemonPlaceholderSvg,
   fetchTypeData,
   fetchSpeciesData,
   getRarityLabelFromSpecies,
@@ -104,6 +105,9 @@ export default function PokemonCard({ pokemon }) {
   const [weaknesses, setWeaknesses] = useState([])
   const [resistances, setResistances] = useState([])
   const [rarityLabel, setRarityLabel] = useState(null)
+  const [currentImageUrlIndex, setCurrentImageUrlIndex] = useState(0)
+  
+  const artworkUrls = useMemo(() => getPokemonArtworkUrlWithFallbacks(pokemon), [pokemon])
   
   const totalStats = getTotalStats(pokemon.stats)
   const primaryType = pokemon.types[0]?.type.name ?? 'normal'
@@ -213,9 +217,18 @@ export default function PokemonCard({ pokemon }) {
           <div className="pokemon-card__art-surface" aria-hidden="true" />
           <img
             className={`pokemon-card__sprite pokemon-card__sprite--${getRarityBadgeVariant(rarityLabel)}`}
-            src={getPokemonArtworkUrl(pokemon)}
+            src={artworkUrls.length > 0 ? artworkUrls[currentImageUrlIndex] : getPokemonPlaceholderSvg(pokemon)}
             alt={pokemon.name}
             loading="lazy"
+            onError={() => {
+              // Try next URL in fallback chain
+              if (currentImageUrlIndex < artworkUrls.length - 1) {
+                setCurrentImageUrlIndex(currentImageUrlIndex + 1)
+              } else if (artworkUrls.length > 0) {
+                // All URLs exhausted, switch to placeholder
+                setCurrentImageUrlIndex(-1)
+              }
+            }}
           />
           <div className="pokemon-card__art-badge" aria-hidden="true">
             <span>{primaryTypeIcon}</span>
