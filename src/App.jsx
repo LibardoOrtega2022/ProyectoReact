@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import {
   fetchPokemonCatalog,
@@ -13,6 +13,9 @@ import FilterDropdown from './components/FilterDropdown'
 import Pagination from './components/Pagination'
 import PokemonGrid from './components/PokemonGrid'
 import SearchPanel from './components/SearchPanel'
+import PokemonModal from './components/PokemonModal'
+import MoveDetail from './components/MoveDetail'
+import AbilityDetail from './components/AbilityDetail'
 
 const PAGE_SIZE = 12
 
@@ -89,6 +92,16 @@ function App() {
   const [loadingPage, setLoadingPage] = useState(false)
   const [showFilterLoading, setShowFilterLoading] = useState(false)
   const [error, setError] = useState('')
+  const [activePanel, setActivePanel] = useState(null) // 'pokemon' | 'moves' | 'abilities' | null
+  const [abilitiesList, setAbilitiesList] = useState([])
+  const [movesList, setMovesList] = useState([])
+  const [loadingList, setLoadingList] = useState(false)
+  const [listFilter, setListFilter] = useState('')
+  const [listPage, setListPage] = useState(1)
+  const LIST_PAGE_SIZE = 40
+  const [selectedListItem, setSelectedListItem] = useState(null) // { type, name, detail }
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [selectedPokemonName, setSelectedPokemonName] = useState(null) // for modal
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -140,6 +153,48 @@ function App() {
       active = false
     }
   }, [])
+
+  // load moves/abilities when panel changes
+  useEffect(() => {
+    let active = true
+    async function loadLists() {
+      if (!activePanel) return
+      try {
+        setLoadingList(true)
+        if (activePanel === 'moves' && movesList.length === 0) {
+          const { fetchMoveList } = await import('./api/pokeapi')
+          const m = await fetchMoveList()
+          if (!active) return
+          setMovesList(m || [])
+        }
+        if (activePanel === 'abilities' && abilitiesList.length === 0) {
+          const { fetchAbilityList } = await import('./api/pokeapi')
+          const a = await fetchAbilityList()
+          if (!active) return
+          setAbilitiesList(a || [])
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (active) setLoadingList(false)
+      }
+    }
+
+    void loadLists()
+    return () => {
+      active = false
+    }
+  }, [activePanel, movesList.length, abilitiesList.length])
+
+  /**
+   * Opens a panel and resets list UI state
+   */
+  function openPanel(panelName) {
+    setActivePanel(panelName)
+    setListFilter('')
+    setListPage(1)
+    setSelectedListItem(null)
+  }
 
   useEffect(() => {
     let active = true
@@ -290,6 +345,81 @@ function App() {
     }
   }, [filteredNames, filtersPending, loadingCatalog, safeCurrentPage])
 
+  // Top-menu open state for accessible submenu toggles
+  const [openTopMenu, setOpenTopMenu] = useState(null) // 'pokedex' | 'community' | null
+  const navRef = useRef(null)
+  const submenuRefs = useRef({ pokedex: null, community: null })
+
+  function handleNavKeyDown(e) {
+    if (!openTopMenu) return
+    const submenu = submenuRefs.current[openTopMenu]
+    if (!submenu) return
+
+    const focusable = Array.from(
+      submenu.querySelectorAll('button, a')
+    ).filter((el) => !el.hasAttribute('disabled'))
+
+    if (focusable.length === 0) return
+
+    const activeIndex = focusable.indexOf(document.activeElement)
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        if (activeIndex === -1) focusable[0].focus()
+        else focusable[(activeIndex + 1) % focusable.length].focus()
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        if (activeIndex === -1) focusable[focusable.length - 1].focus()
+        else focusable[(activeIndex - 1 + focusable.length) % focusable.length].focus()
+        break
+      case 'Home':
+        e.preventDefault()
+        focusable[0].focus()
+        break
+      case 'End':
+        e.preventDefault()
+        focusable[focusable.length - 1].focus()
+        break
+      case 'Escape':
+        e.preventDefault()
+        setOpenTopMenu(null)
+        // return focus to the toggle
+        const toggle = navRef.current.querySelector('.menu-toggle[aria-expanded="true"]')
+        toggle?.focus()
+        break
+      case 'Enter':
+        if (activeIndex >= 0) {
+          e.preventDefault()
+          focusable[activeIndex].click()
+        }
+        break
+      default:
+        break
+    }
+  }
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!navRef.current) return
+      if (!navRef.current.contains(e.target)) {
+        setOpenTopMenu(null)
+      }
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') setOpenTopMenu(null)
+    }
+
+    document.addEventListener('click', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
   /**
    * Applies the current text query as the active search term.
    */
@@ -372,6 +502,250 @@ function App() {
     <main className="app-shell">
       <section className="pokedex-app">
         <div className="pokedex-header">
+          <div className="menu-lists-wrap">
+            <nav ref={navRef} className="top-menu" aria-label="Main navigation">
+              <ul onKeyDown={handleNavKeyDown}>
+                <li className="has-submenu menu-item">
+                  <button
+                    type="button"
+                    className="menu-toggle"
+                    aria-expanded={openTopMenu === 'pokedex'}
+                    aria-controls="menu-pokedex"
+                    onClick={() => setOpenTopMenu(openTopMenu === 'pokedex' ? null : 'pokedex')}
+                  >
+                    Pokédex
+                  </button>
+
+                  <ul
+                    id="menu-pokedex"
+                    ref={(el) => (submenuRefs.current.pokedex = el)}
+                    className="submenu generations"
+                    data-open={openTopMenu === 'pokedex' ? 'true' : 'false'}
+                    aria-hidden={openTopMenu === 'pokedex' ? 'false' : 'true'}
+                  >
+                    <li>
+                      <button type="button" onClick={() => { setOpenTopMenu(null); openPanel('moves')}}>Lista de movimientos</button>
+                      <button type="button" onClick={() => { setOpenTopMenu(null); openPanel('abilities')}}>Lista de habilidades</button>
+                    </li>
+                  </ul>
+                </li>
+
+                <li className="has-submenu menu-item">
+                  <button
+                    type="button"
+                    className="menu-toggle"
+                    aria-expanded={openTopMenu === 'community'}
+                    aria-controls="menu-community"
+                    onClick={() => setOpenTopMenu(openTopMenu === 'community' ? null : 'community')}
+                  >
+                    Comunidad
+                  </button>
+
+                  <ul
+                    id="menu-community"
+                    ref={(el) => (submenuRefs.current.community = el)}
+                    className="submenu"
+                    data-open={openTopMenu === 'community' ? 'true' : 'false'}
+                    aria-hidden={openTopMenu === 'community' ? 'false' : 'true'}
+                  >
+                    <li><a href="https://www.reddit.com/r/pokemon/" target="_blank" rel="noreferrer">Foros</a></li>
+                    <li><a href="https://discord.com/invite/pokemon" target="_blank" rel="noreferrer">Discord</a></li>
+                  </ul>
+                </li>
+
+                <li><a href="https://bulbapedia.bulbagarden.net/" target="_blank" rel="noreferrer">Guías</a></li>
+              </ul>
+            </nav>
+
+            {/* Panel area for lists triggered by the top-menu */}
+            {activePanel && (
+              <div className="lists-panel panel" role="dialog" aria-label="Panel de listas">
+                <div className="lists-panel__head">
+                  <div className="lists-panel__title">
+                    <h2>
+                      {activePanel === 'pokemon' && '🔍 Pokémon'}
+                      {activePanel === 'moves' && '⚡ Movimientos'}
+                      {activePanel === 'abilities' && '✨ Habilidades'}
+                    </h2>
+                  </div>
+                  <button
+                    className="lists-panel__close"
+                    onClick={() => {
+                      setActivePanel(null)
+                      setSelectedListItem(null)
+                    }}
+                    title="Cerrar panel"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="lists-panel__body">
+                  {loadingList ? (
+                    <p>Cargando...</p>
+                  ) : (
+                    <>
+                      {selectedListItem && (
+                        <div className="lists-panel__detail">
+                          <div className="lists-panel__detail-head">
+                            <h3>{selectedListItem.name}</h3>
+                            <button onClick={() => setSelectedListItem(null)}>Cerrar</button>
+                          </div>
+                          {activePanel === 'moves' && <MoveDetail move={selectedListItem.detail} />}
+                          {activePanel === 'abilities' && <AbilityDetail ability={selectedListItem.detail} />}
+                        </div>
+                      )}
+
+                      <div className="lists-panel__items">
+                        <div className="lists-panel__filter-section">
+                          <label className="lists-panel__filter-label">Filtrar:</label>
+                          <input
+                            type="search"
+                            className="lists-panel__filter-input"
+                            placeholder="Escribe para filtrar..."
+                            value={listFilter}
+                            onChange={(e) => {
+                              setListFilter(e.target.value)
+                              setListPage(1)
+                            }}
+                          />
+                        </div>
+
+                        <ul className="lists-panel__list">
+                          {(() => {
+                            const currentArray =
+                              activePanel === 'pokemon'
+                                ? catalog.map((p) => p.name)
+                                : activePanel === 'moves'
+                                ? movesList
+                                : abilitiesList
+
+                            const lowerFilter = (listFilter || '').toLowerCase()
+                            const filtered = currentArray.filter((n) => (n || '').toLowerCase().includes(lowerFilter))
+                            const total = Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE))
+                            const page = Math.min(listPage, total)
+                            const start = (page - 1) * LIST_PAGE_SIZE
+                            const slice = filtered.slice(start, start + LIST_PAGE_SIZE)
+
+                            if (slice.length === 0) {
+                              return (
+                                <li className="lists-panel__empty">No se encontraron resultados para ese filtro.</li>
+                              )
+                            }
+
+                            return slice.map((name) => (
+                              <li key={name} className="lists-panel__list-item">
+                                <div className="lists-panel__item-head">
+                                  <button
+                                    className="lists-panel__item-link"
+                                    type="button"
+                                    onClick={async () => {
+                                      if (activePanel === 'pokemon') {
+                                        setSelectedPokemonName(name)
+                                        return
+                                      }
+
+                                      try {
+                                        setLoadingDetail(true)
+
+                                        if (activePanel === 'moves') {
+                                          const { fetchMoveDetail } = await import('./api/pokeapi')
+                                          const d = await fetchMoveDetail(name)
+                                          setSelectedListItem({ type: 'movimiento', name, detail: d })
+                                        } else {
+                                          const { fetchAbilityDetail } = await import('./api/pokeapi')
+                                          const d = await fetchAbilityDetail(name)
+                                          setSelectedListItem({ type: 'habilidad', name, detail: d })
+                                        }
+                                      } catch {
+                                        // ignore
+                                      } finally {
+                                        setLoadingDetail(false)
+                                      }
+                                    }}
+                                  >
+                                    {name}
+                                  </button>
+
+                                  <button
+                                    className="lists-panel__item-toggle"
+                                    type="button"
+                                    onClick={async () => {
+                                      if (activePanel === 'pokemon') {
+                                        setSelectedPokemonName(name)
+                                        return
+                                      }
+
+                                      try {
+                                        setLoadingDetail(true)
+
+                                        if (activePanel === 'moves') {
+                                          const { fetchMoveDetail } = await import('./api/pokeapi')
+                                          const d = await fetchMoveDetail(name)
+                                          setSelectedListItem({ type: 'movimiento', name, detail: d })
+                                        } else {
+                                          const { fetchAbilityDetail } = await import('./api/pokeapi')
+                                          const d = await fetchAbilityDetail(name)
+                                          setSelectedListItem({ type: 'habilidad', name, detail: d })
+                                        }
+                                      } catch {
+                                        // ignore
+                                      } finally {
+                                        setLoadingDetail(false)
+                                      }
+                                    }}
+                                    aria-label={`Ver detalles de ${name}`}
+                                  >
+                                    →
+                                  </button>
+                                </div>
+                              </li>
+                            ))
+                          })()}
+                        </ul>
+
+                        <div className="lists-panel__pagination">
+                          <button
+                            type="button"
+                            onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                            disabled={listPage <= 1}
+                          >
+                            ← Anterior
+                          </button>
+                          <span className="lists-panel__page">{listPage}</span>
+                          <button
+                            type="button"
+                            onClick={() => setListPage((p) => p + 1)}
+                          >
+                            Siguiente →
+                          </button>
+                        </div>
+
+                        {loadingDetail && <p className="lists-panel__loading">Cargando ficha...</p>}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="standalone-filter">
+            <FilterDropdown
+              generationOptions={generationOptions}
+              loading={loadingCatalog || showFilterLoading}
+              onClearFilters={handleClearFilters}
+              onGenerationChange={handleGenerationChange}
+              onRarityChange={handleRarityChange}
+              onTypeChange={handleTypeChange}
+              selectedGeneration={selectedGeneration}
+              selectedRarity={selectedRarity}
+              selectedType={selectedType}
+              typeOptions={typeOptions}
+              totalResults={totalResults}
+            />
+          </div>
+
           <SearchPanel
             loading={loadingCatalog || loadingPage || showFilterLoading}
             onRandomPokemon={handleRandomPokemon}
@@ -381,19 +755,9 @@ function App() {
             totalResults={totalResults}
           />
 
-          <FilterDropdown
-            generationOptions={generationOptions}
-            loading={loadingCatalog || showFilterLoading}
-            onClearFilters={handleClearFilters}
-            onGenerationChange={handleGenerationChange}
-            onRarityChange={handleRarityChange}
-            onTypeChange={handleTypeChange}
-            selectedGeneration={selectedGeneration}
-            selectedRarity={selectedRarity}
-            selectedType={selectedType}
-            typeOptions={typeOptions}
-            totalResults={totalResults}
-          />
+          
+
+
         </div>
 
         <PokemonGrid
@@ -451,6 +815,10 @@ function App() {
           <p className="site-footer__copy">© 2026 Pokédex Atlas. Datos provistos por PokéAPI.</p>
         </footer>
       </section>
+
+      {selectedPokemonName && (
+        <PokemonModal pokemonName={selectedPokemonName} onClose={() => setSelectedPokemonName(null)} />
+      )}
     </main>
   )
 }

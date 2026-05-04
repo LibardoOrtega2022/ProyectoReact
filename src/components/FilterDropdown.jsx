@@ -35,6 +35,23 @@ const RARITY_ICONS = {
 /**
  * Filter dropdown menu positioned at the top right
  */
+// Translate generation slug to Spanish friendly label
+function translateGeneration(value, fallback) {
+  const map = {
+    'generation-i': 'Primera generación',
+    'generation-ii': 'Segunda generación',
+    'generation-iii': 'Tercera generación',
+    'generation-iv': 'Cuarta generación',
+    'generation-v': 'Quinta generación',
+    'generation-vi': 'Sexta generación',
+    'generation-vii': 'Séptima generación',
+    'generation-viii': 'Octava generación',
+    'generation-ix': 'Novena generación',
+  }
+
+  return map[value] || fallback || value
+}
+
 export default function FilterDropdown({
   generationOptions,
   onClearFilters,
@@ -47,48 +64,98 @@ export default function FilterDropdown({
   typeOptions,
   loading,
   totalResults,
+  // controlled externally when passed
+  controlledOpen,
+  onClose,
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
+  const firstControlRef = useRef(null)
 
-  // Close dropdown when clicking outside
+  const isControlled = typeof controlledOpen === 'boolean'
+  const open = isControlled ? controlledOpen : isOpen
+
+  // Autofocus first control whenever dropdown opens.
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const focusTimer = requestAnimationFrame(() => {
+      firstControlRef.current?.focus()
+    })
+
+    return () => {
+      cancelAnimationFrame(focusTimer)
+    }
+  }, [open])
+
+  // Close dropdown when clicking/touching outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
+        if (isControlled) {
+          onClose?.()
+        } else {
+          setIsOpen(false)
+        }
       }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('touchstart', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [isControlled, onClose])
 
   const hasActiveFilters = selectedType || selectedGeneration || selectedRarity
 
   function handleClear() {
     onClearFilters()
-    setIsOpen(false)
+    if (isControlled) {
+      onClose?.()
+    } else {
+      setIsOpen(false)
+    }
+  }
+
+  function handleClose() {
+    if (isControlled) {
+      onClose?.()
+    } else {
+      setIsOpen(false)
+    }
   }
 
   return (
-    <div className="filter-dropdown-container" ref={dropdownRef}>
-      <button
-        className="filter-dropdown-button"
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={loading}
-        title="Abrir filtros"
-      >
-        <span className="filter-icon">⚙️</span>
-        {hasActiveFilters && <span className="filter-badge">{[selectedType, selectedGeneration, selectedRarity].filter(Boolean).length}</span>}
-      </button>
+    <div
+      className={`filter-dropdown-container ${isControlled ? 'filter-dropdown-container--controlled' : ''}`}
+      ref={dropdownRef}
+    >
+      {/* If parent controls open state, hide the internal toggle button */}
+      {!isControlled && (
+        <button
+          className="filter-dropdown-button"
+          onClick={() => setIsOpen(!isOpen)}
+          type="button"
+          disabled={loading}
+          title="Abrir filtros"
+        >
+          <span className="filter-icon">⚙️</span>
+          {hasActiveFilters && <span className="filter-badge">{[selectedType, selectedGeneration, selectedRarity].filter(Boolean).length}</span>}
+        </button>
+      )}
 
-      {isOpen && (
+      {open && (
         <div className="filter-dropdown-menu">
           <div className="filter-dropdown-header">
             <h3>Filtros</h3>
             <button
               className="filter-close-btn"
-              onClick={() => setIsOpen(false)}
+              type="button"
+              onClick={handleClose}
               title="Cerrar"
             >
               ✕
@@ -101,8 +168,10 @@ export default function FilterDropdown({
               <label className="filter-section-title">Tipo</label>
               <div className="filter-options">
                 <button
+                  ref={firstControlRef}
                   className={`filter-option ${!selectedType ? 'active' : ''}`}
                   onClick={() => onTypeChange('')}
+                  type="button"
                   disabled={loading}
                 >
                   Todos
@@ -112,6 +181,7 @@ export default function FilterDropdown({
                     key={option.value}
                     className={`filter-option ${selectedType === option.value ? 'active' : ''}`}
                     onClick={() => onTypeChange(option.value)}
+                    type="button"
                     disabled={loading}
                     title={option.label}
                   >
@@ -131,6 +201,7 @@ export default function FilterDropdown({
                 <button
                   className={`filter-option ${!selectedGeneration ? 'active' : ''}`}
                   onClick={() => onGenerationChange('')}
+                  type="button"
                   disabled={loading}
                 >
                   Todas
@@ -140,9 +211,11 @@ export default function FilterDropdown({
                     key={option.value}
                     className={`filter-option ${selectedGeneration === option.value ? 'active' : ''}`}
                     onClick={() => onGenerationChange(option.value)}
+                    type="button"
                     disabled={loading}
+                    title={option.label}
                   >
-                    {option.label}
+                    {translateGeneration(option.value, option.label)}
                   </button>
                 ))}
               </div>
@@ -155,6 +228,7 @@ export default function FilterDropdown({
                 <button
                   className={`filter-option ${!selectedRarity ? 'active' : ''}`}
                   onClick={() => onRarityChange('')}
+                  type="button"
                   disabled={loading}
                 >
                   Todas
@@ -164,6 +238,7 @@ export default function FilterDropdown({
                     key={rarity}
                     className={`filter-option ${selectedRarity === rarity ? 'active' : ''}`}
                     onClick={() => onRarityChange(rarity)}
+                    type="button"
                     disabled={loading}
                   >
                     <span className="filter-option-icon">{RARITY_ICONS[rarity]}</span>
@@ -183,6 +258,7 @@ export default function FilterDropdown({
               <button
                 className="filter-clear-button"
                 onClick={handleClear}
+                type="button"
                 disabled={loading}
               >
                 Limpiar todos los filtros

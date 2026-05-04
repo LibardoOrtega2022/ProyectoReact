@@ -35,7 +35,7 @@ export function getPokemonArtworkUrl(pokemon) {
 /**
  * Fetches and caches a single Pokémon detail payload.
  */
-async function fetchPokemonDetail(name) {
+export async function fetchPokemonDetail(name) {
   if (pokemonCache.has(name)) {
     return pokemonCache.get(name)
   }
@@ -181,4 +181,34 @@ export async function fetchPokemonNamesByRarity(names, rarityLabel) {
   }
 
   return matchedNames
+}
+
+/**
+ * Fetch list of all abilities (names) - cached simple call
+ */
+export async function fetchAbilityList() {
+  const data = await requestJson('/ability?limit=1000')
+  return data.results.map((r) => r.name)
+}
+
+/**
+ * Fetch list of all moves (names)
+ */
+export async function fetchMoveList() {
+  const data = await requestJson('/move?limit=2000')
+  return data.results.map((r) => r.name)
+}
+
+/**
+ * Fetch full move detail
+ */
+export async function fetchMoveDetail(moveName) {
+  return requestJson(`/move/${encodeURIComponent(moveName)}`)
+}
+
+/**
+ * Fetch full ability detail
+ */
+export async function fetchAbilityDetail(abilityName) {
+  return requestJson(`/ability/${encodeURIComponent(abilityName)}`)
 }

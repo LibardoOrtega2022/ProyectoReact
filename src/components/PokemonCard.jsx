@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { formatDisplayName, getPokemonArtworkUrl, fetchTypeData, fetchSpeciesData, getRarityLabelFromSpecies } from '../api/pokeapi'
+import {
+  formatDisplayName,
+  getPokemonArtworkUrl,
+  fetchTypeData,
+  fetchSpeciesData,
+  getRarityLabelFromSpecies,
+} from '../api/pokeapi'
 
 /**
  * Formats PokéAPI metric values into readable units.
@@ -98,6 +104,7 @@ export default function PokemonCard({ pokemon }) {
   const [weaknesses, setWeaknesses] = useState([])
   const [resistances, setResistances] = useState([])
   const [rarityLabel, setRarityLabel] = useState(null)
+  
   const totalStats = getTotalStats(pokemon.stats)
   const primaryType = pokemon.types[0]?.type.name ?? 'normal'
   const primaryTypeIcon = getTypeIcon(primaryType)
@@ -111,6 +118,7 @@ export default function PokemonCard({ pokemon }) {
     ? 'Movimiento registrado.'
     : 'Sin movimientos registrados'
   const retreatCost = Math.min(4, Math.max(1, Math.round((pokemon.weight || 10) / 40)))
+  
 
   useEffect(() => {
     let active = true
@@ -199,6 +207,8 @@ export default function PokemonCard({ pokemon }) {
           </div>
         </header>
 
+        
+
         <div className="pokemon-card__art-frame">
           <div className="pokemon-card__art-surface" aria-hidden="true" />
           <img
@@ -211,6 +221,7 @@ export default function PokemonCard({ pokemon }) {
             <span>{primaryTypeIcon}</span>
           </div>
         </div>
+        
 
         <div className="pokemon-card__info-strip" aria-label="Datos rápidos del Pokémon">
           <div className="pokemon-card__info-chip">
@@ -241,6 +252,8 @@ export default function PokemonCard({ pokemon }) {
             <p>{attackDescription}</p>
           </div>
         </section>
+
+        
 
         <section className="pokemon-card__footer-row">
           <div className="pokemon-card__footer-pill">
