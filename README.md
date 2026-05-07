@@ -1,18 +1,56 @@
-# React + Vite
+# myreactapp — Pokédex (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Proyecto SPA construido con React + Vite: una Pokédex ligera con búsqueda, filtros y un panel de "Regiones y Localidades".
 
-Currently, two official plugins are available:
+Resumen rápido
+- Interfaz de búsqueda y filtrado por tipo, generación y rareza.
+- Panel de listas con pestaña "Regiones y Localidades" que permite filtrar Pokémon por región o por localidad.
+- Visualización de información adicional por Pokémon (género y localidades) sin modificar las tarjetas principales.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Estructura principal
+- `src/` — código fuente React
+	- `api/` — wrappers y utilidades para PokéAPI (`pokeapi.js`, `pokemon-details.js`)
+	- `components/` — componentes UI (p. ej. `PokemonGrid`, `PokemonInfo`, `RegionPokemonItem`)
+	- `App.jsx`, `main.jsx`, `App.css`
+- `public/` — assets públicos
 
-## React Compiler
+Funciones clave
+- `fetchPokemonGender`, `fetchPokemonLocations`, `fetchPokemonByRegion`, `fetchPokemonByLocation`, `fetchAllLocations` en `src/api/pokemon-details.js`.
+- Buscador de localidades con dropdown filtrable y scroll optimizado.
+- Lista compacta de Pokémon por filtro que muestra únicamente nombre (sin clickable) y soporte para imagen (fallback cuando sea necesario).
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+Cómo ejecutar (desarrollo)
+1. Instalar dependencias:
 
-Note: This will impact Vite dev & build performances.
+```bash
+npm install
+```
 
-## Expanding the ESLint configuration
+2. Levantar servidor de desarrollo:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm run dev
+```
+
+3. Construir para producción:
+
+```bash
+npm run build
+```
+
+Notas de desarrollo
+- El panel de regiones usa `REGIONS` (mapeo a generaciones) y `fetchPokemonByRegion` para obtener nombres.
+- El input de localidad muestra nombres formateados (p. ej. `cerulean-city-area` → "Cerulean City Area") pero guarda el identificador crudo para las llamadas a la API.
+- CSS principal está en `src/App.css` y contiene estilos para los paneles y el dropdown de localidades.
+
+Problemas conocidos
+- Para ejecutar localmente necesitas tener `npm`/Node.js en el sistema (el proyecto no arranca si `npm` no está instalado en la máquina).
+
+Contribuir
+- Abrir una rama, crear PR con cambios claros y pruebas mínimas.
+
+Licencia
+- Repositorio sin licencia explícita (añadir `LICENSE` si corresponde).
+
+Contacto
+- Preguntas o cambios de UI: describir el comportamiento deseado y abrir una issue/PR.
