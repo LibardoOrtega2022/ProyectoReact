@@ -1,21 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
-import {
-  fetchPokemonCatalog,
-  fetchPokemonDetailsByNames,
-  fetchPokemonGenerationOptions,
-  fetchPokemonNamesByGeneration,
-  fetchPokemonNamesByRarity,
-  fetchPokemonNamesByType,
-  fetchPokemonTypeOptions,
-} from './api/pokeapi'
+import useCatalogAndFilters from './hooks/useCatalogAndFilters'
+import { fetchPokemonDetailsByNames } from './api/pokeapi'
 import {
   REGIONS,
   fetchPokemonByRegion,
   fetchPokemonByLocation,
   fetchAllLocations,
 } from './api/pokemon-details'
-import FilterDropdown from './components/FilterDropdown'
+import FilterDrawer from './components/FilterDrawer'
 import Pagination from './components/Pagination'
 import PokemonGrid from './components/PokemonGrid'
 import SearchPanel from './components/SearchPanel'
@@ -23,62 +16,10 @@ import PokemonModal from './components/PokemonModal'
 import MoveDetail from './components/MoveDetail'
 import AbilityDetail from './components/AbilityDetail'
 import RegionPokemonItem from './components/RegionPokemonItem'
+import useListsAndDetails from './hooks/useListsAndDetails'
 
 const PAGE_SIZE = 12
 
-function intersectNames(sourceNames, allowedNames) {
-  const allowed = new Set(allowedNames)
-  return sourceNames.filter((name) => allowed.has(name))
-}
-
-/**
- * Combines search text and active filters into the list of visible Pokémon names.
- */
-function buildFilteredNames(
-  catalog,
-  searchTerm,
-  selectedType,
-  typeMatches,
-  selectedGeneration,
-  generationMatches,
-  selectedRarity,
-  rarityMatches,
-) {
-  let filteredNames = catalog.map((pokemon) => pokemon.name)
-
-  if (searchTerm) {
-    filteredNames = filteredNames.filter((name) => name.includes(searchTerm))
-  }
-
-  if (selectedType) {
-    if (typeMatches === null) {
-      return []
-    }
-
-    const typeMatchSet = new Set(typeMatches)
-    filteredNames = filteredNames.filter((name) => typeMatchSet.has(name))
-  }
-
-  if (selectedGeneration) {
-    if (generationMatches === null) {
-      return []
-    }
-
-    const generationMatchSet = new Set(generationMatches)
-    filteredNames = filteredNames.filter((name) => generationMatchSet.has(name))
-  }
-
-  if (selectedRarity) {
-    if (rarityMatches === null) {
-      return []
-    }
-
-    const rarityMatchSet = new Set(rarityMatches)
-    filteredNames = filteredNames.filter((name) => rarityMatchSet.has(name))
-  }
-
-  return filteredNames
-}
 
 /**
  * Format raw location id (e.g. "cerulean-city-area") into a human friendly string
@@ -93,34 +34,48 @@ function formatLocationName(raw) {
 }
 
 function App() {
-  const [catalog, setCatalog] = useState([])
-  const [typeOptions, setTypeOptions] = useState([])
-  const [generationOptions, setGenerationOptions] = useState([])
-  const [searchInput, setSearchInput] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedType, setSelectedType] = useState('')
-  const [selectedGeneration, setSelectedGeneration] = useState('')
-  const [selectedRarity, setSelectedRarity] = useState('')
-  const [typeMatches, setTypeMatches] = useState(null)
-  const [generationMatches, setGenerationMatches] = useState(null)
-  const [rarityMatches, setRarityMatches] = useState(null)
+  const {
+    catalog,
+    typeOptions,
+    generationOptions,
+    searchInput,
+    setSearchInput,
+    searchTerm,
+    setSearchTerm,
+    setSelectedType,
+    setSelectedGeneration,
+    setSelectedRarity,
+    selectedType,
+    selectedGeneration,
+    selectedRarity,
+    loadingCatalog,
+    showFilterLoading,
+    filteredNames,
+    totalResults,
+    totalPages,
+    filtersPending,
+    handleRandomPokemon: handleRandomPokemonHook,
+    handleClearFilters: handleClearFiltersHook,
+    handleTypeChange: handleTypeChangeHook,
+    handleGenerationChange: handleGenerationChangeHook,
+    handleRarityChange: handleRarityChangeHook,
+  } = useCatalogAndFilters(PAGE_SIZE)
+
   const [pagePokemon, setPagePokemon] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
-  const [loadingCatalog, setLoadingCatalog] = useState(true)
-  const [loadingFilters, setLoadingFilters] = useState(false)
   const [loadingPage, setLoadingPage] = useState(false)
-  const [showFilterLoading, setShowFilterLoading] = useState(false)
   const [error, setError] = useState('')
   const [activePanel, setActivePanel] = useState(null) // 'pokemon' | 'moves' | 'abilities' | null
-  const [abilitiesList, setAbilitiesList] = useState([])
-  const [movesList, setMovesList] = useState([])
-  const [loadingList, setLoadingList] = useState(false)
+  // lists managed by hook
   const [listFilter, setListFilter] = useState('')
   const [listPage, setListPage] = useState(1)
   const LIST_PAGE_SIZE = 40
   const [selectedListItem, setSelectedListItem] = useState(null) // { type, name, detail }
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [selectedPokemonName, setSelectedPokemonName] = useState(null) // for modal
+
+  const lists = useListsAndDetails(activePanel)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Region & Location filter states
   const [selectedRegion, setSelectedRegion] = useState('')
@@ -131,88 +86,74 @@ function App() {
   const [locationPokemon, setLocationPokemon] = useState([])
   const [allLocations, setAllLocations] = useState([])
 
+  // Initial data and filter logic moved to `useCatalogAndFilters`
+
+  // Sync state from URL on mount
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setShowFilterLoading(loadingFilters)
-    }, 180)
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const q = params.get('q') || ''
+        const page = parseInt(params.get('page') || '1', 10)
+      const type = params.get('type') || ''
+      const gen = params.get('gen') || ''
+      const rarity = params.get('rarity') || ''
 
-    return () => {
-      clearTimeout(timeoutId)
-    }
-  }, [loadingFilters])
-
-  useEffect(() => {
-    let active = true
-
-    async function loadInitialData() {
-      setLoadingCatalog(true)
-      setError('')
-
-      try {
-        const [catalogData, typeData, generationData] = await Promise.all([
-          fetchPokemonCatalog(),
-          fetchPokemonTypeOptions(),
-          fetchPokemonGenerationOptions(),
-        ])
-
-        if (!active) {
-          return
-        }
-
-        setCatalog(catalogData)
-        setTypeOptions(typeData)
-        setGenerationOptions(generationData)
-      } catch (cause) {
-        if (!active) {
-          return
-        }
-
-        setError(cause instanceof Error ? cause.message : 'No se pudo cargar la Pokédex.')
-      } finally {
-        if (active) {
-          setLoadingCatalog(false)
-        }
+      if (q) {
+        setSearchInput(q)
+        setSearchTerm(q)
       }
-    }
 
-    void loadInitialData()
-
-    return () => {
-      active = false
+      if (Number.isFinite(page) && page > 0) setTimeout(() => setCurrentPage(Math.max(1, page)), 0)
+      if (type) setSelectedType(type)
+      if (gen) setSelectedGeneration(gen)
+      if (rarity) setSelectedRarity(rarity)
+    } catch {
+      // ignore
     }
+    // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // load moves/abilities when panel changes
+  // Load persisted filters from localStorage if user has saved preferences
   useEffect(() => {
-    let active = true
-    async function loadLists() {
-      if (!activePanel) return
-      try {
-        setLoadingList(true)
-        if (activePanel === 'moves' && movesList.length === 0) {
-          const { fetchMoveList } = await import('./api/pokeapi')
-          const m = await fetchMoveList()
-          if (!active) return
-          setMovesList(m || [])
-        }
-        if (activePanel === 'abilities' && abilitiesList.length === 0) {
-          const { fetchAbilityList } = await import('./api/pokeapi')
-          const a = await fetchAbilityList()
-          if (!active) return
-          setAbilitiesList(a || [])
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (active) setLoadingList(false)
-      }
+    try {
+      const raw = window.localStorage.getItem('pokedex:filters')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      // Only apply persisted if current selections are empty (URL takes precedence earlier)
+      if (!selectedType && parsed.type) setSelectedType(parsed.type)
+      if (!selectedGeneration && parsed.generation) setSelectedGeneration(parsed.generation)
+      if (!selectedRarity && parsed.rarity) setSelectedRarity(parsed.rarity)
+    } catch {
+      // ignore
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    void loadLists()
-    return () => {
-      active = false
+  // Persist filters when they change
+  useEffect(() => {
+    try {
+      const obj = { type: selectedType || '', generation: selectedGeneration || '', rarity: selectedRarity || '' }
+      window.localStorage.setItem('pokedex:filters', JSON.stringify(obj))
+    } catch {
+      // ignore
     }
-  }, [activePanel, movesList.length, abilitiesList.length])
+  }, [selectedType, selectedGeneration, selectedRarity])
+
+  // Update URL when relevant state changes
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (searchTerm) params.set('q', searchTerm)
+    if (currentPage && currentPage > 1) params.set('page', String(currentPage))
+    if (selectedType) params.set('type', selectedType)
+    if (selectedGeneration) params.set('gen', selectedGeneration)
+    if (selectedRarity) params.set('rarity', selectedRarity)
+
+    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
+    window.history.replaceState({}, '', newUrl)
+  }, [searchTerm, currentPage, selectedType, selectedGeneration, selectedRarity])
+
+  // lists for moves/abilities are handled by `useListsAndDetails`
 
   // Load locations when regions panel opens
   useEffect(() => {
@@ -294,107 +235,7 @@ function App() {
     setSelectedListItem(null)
   }
 
-  useEffect(() => {
-    let active = true
-
-    async function loadFilterMatches() {
-      if (!selectedType && !selectedGeneration && !selectedRarity) {
-        setTypeMatches(null)
-        setGenerationMatches(null)
-        setRarityMatches(null)
-        setLoadingFilters(false)
-        return
-      }
-
-      setLoadingFilters(true)
-
-      try {
-        const catalogNames = catalog.map((pokemon) => pokemon.name)
-        const searchedNames = searchTerm
-          ? catalogNames.filter((name) => name.includes(searchTerm))
-          : catalogNames
-
-        const [nextTypeMatches, nextGenerationMatches] = await Promise.all([
-          selectedType ? fetchPokemonNamesByType(selectedType) : Promise.resolve(null),
-          selectedGeneration
-            ? fetchPokemonNamesByGeneration(selectedGeneration)
-            : Promise.resolve(null),
-        ])
-
-        let rarityBaseNames = searchedNames
-        if (selectedType && nextTypeMatches) {
-          rarityBaseNames = intersectNames(rarityBaseNames, nextTypeMatches)
-        }
-        if (selectedGeneration && nextGenerationMatches) {
-          rarityBaseNames = intersectNames(rarityBaseNames, nextGenerationMatches)
-        }
-
-        const nextRarityMatches = selectedRarity
-          ? await fetchPokemonNamesByRarity(rarityBaseNames, selectedRarity)
-          : null
-
-        if (!active) {
-          return
-        }
-
-        setTypeMatches(nextTypeMatches)
-        setGenerationMatches(nextGenerationMatches)
-        setRarityMatches(nextRarityMatches)
-        setError('')
-      } catch (cause) {
-        if (!active) {
-          return
-        }
-
-        setTypeMatches(selectedType ? [] : null)
-        setGenerationMatches(selectedGeneration ? [] : null)
-        setRarityMatches(selectedRarity ? [] : null)
-        setError(cause instanceof Error ? cause.message : 'No se pudieron cargar los filtros.')
-      } finally {
-        if (active) {
-          setLoadingFilters(false)
-        }
-      }
-    }
-
-    void loadFilterMatches()
-
-    return () => {
-      active = false
-    }
-  }, [catalog, searchTerm, selectedType, selectedGeneration, selectedRarity])
-
-  const filteredNames = useMemo(
-    () =>
-      buildFilteredNames(
-        catalog,
-        searchTerm,
-        selectedType,
-        typeMatches,
-        selectedGeneration,
-        generationMatches,
-        selectedRarity,
-        rarityMatches,
-      ),
-    [
-      catalog,
-      generationMatches,
-      rarityMatches,
-      searchTerm,
-      selectedGeneration,
-      selectedRarity,
-      selectedType,
-      typeMatches,
-    ],
-  )
-
-  const totalResults = filteredNames.length
-  const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE))
   const safeCurrentPage = Math.min(currentPage, totalPages)
-  const filtersPending =
-    (selectedType && typeMatches === null) ||
-    (selectedGeneration && generationMatches === null) ||
-    (selectedRarity && rarityMatches === null)
 
   useEffect(() => {
     if (loadingCatalog || filtersPending) {
@@ -532,44 +373,23 @@ function App() {
    * Picks a random Pokémon from the loaded catalog and resets the filters.
    */
   function handleRandomPokemon() {
-    if (catalog.length === 0) {
-      return
-    }
-
-    const randomPokemon = catalog[Math.floor(Math.random() * catalog.length)]
-    setError('')
-    setSearchInput(randomPokemon.name)
-    setSearchTerm(randomPokemon.name)
-    setSelectedType('')
-    setSelectedGeneration('')
-    setTypeMatches(null)
-    setGenerationMatches(null)
-    setRarityMatches(null)
-    setSelectedRarity('')
-    setCurrentPage(1)
+    const name = handleRandomPokemonHook()
+    if (name) setCurrentPage(1)
   }
 
   /**
    * Clears the search term and every active filter in one step.
    */
   function handleClearFilters() {
-    setSearchInput('')
-    setSearchTerm('')
-    setSelectedType('')
-    setSelectedGeneration('')
-    setSelectedRarity('')
-    setTypeMatches(null)
-    setGenerationMatches(null)
-    setRarityMatches(null)
+    handleClearFiltersHook()
     setCurrentPage(1)
-    setError('')
   }
 
   /**
    * Updates the selected type and clears the current results view.
    */
   function handleTypeChange(nextType) {
-    setSelectedType(nextType)
+    handleTypeChangeHook(nextType)
     setCurrentPage(1)
   }
 
@@ -577,7 +397,7 @@ function App() {
    * Updates the selected generation and clears the current results view.
    */
   function handleGenerationChange(nextGeneration) {
-    setSelectedGeneration(nextGeneration)
+    handleGenerationChangeHook(nextGeneration)
     setCurrentPage(1)
   }
 
@@ -585,7 +405,7 @@ function App() {
    * Updates the selected rarity and clears the current results view.
    */
   function handleRarityChange(nextRarity) {
-    setSelectedRarity(nextRarity)
+    handleRarityChangeHook(nextRarity)
     setCurrentPage(1)
   }
 
@@ -682,7 +502,7 @@ function App() {
                 </div>
 
                 <div className="lists-panel__body">
-                  {loadingList ? (
+                  {lists.loadingList ? (
                     <p>Cargando...</p>
                   ) : (
                     <>
@@ -815,9 +635,9 @@ function App() {
                               activePanel === 'pokemon'
                                 ? catalog.map((p) => p.name)
                                 : activePanel === 'moves'
-                                ? movesList
+                                ? lists.movesList
                                 : activePanel === 'abilities'
-                                ? abilitiesList
+                                ? lists.abilitiesList
                                 : activePanel === 'regions'
                                 ? selectedRegion
                                   ? regionPokemon
@@ -867,18 +687,8 @@ function App() {
 
                                       try {
                                         setLoadingDetail(true)
-
-                                        if (activePanel === 'moves') {
-                                          const { fetchMoveDetail } = await import('./api/pokeapi')
-                                          const d = await fetchMoveDetail(name)
-                                          setSelectedListItem({ type: 'movimiento', name, detail: d })
-                                        } else {
-                                          const { fetchAbilityDetail } = await import('./api/pokeapi')
-                                          const d = await fetchAbilityDetail(name)
-                                          setSelectedListItem({ type: 'habilidad', name, detail: d })
-                                        }
-                                      } catch {
-                                        // ignore
+                                        const detail = await lists.fetchDetail(name, activePanel)
+                                        if (detail) setSelectedListItem(detail)
                                       } finally {
                                         setLoadingDetail(false)
                                       }
@@ -903,18 +713,8 @@ function App() {
 
                                       try {
                                         setLoadingDetail(true)
-
-                                        if (activePanel === 'moves') {
-                                          const { fetchMoveDetail } = await import('./api/pokeapi')
-                                          const d = await fetchMoveDetail(name)
-                                          setSelectedListItem({ type: 'movimiento', name, detail: d })
-                                        } else {
-                                          const { fetchAbilityDetail } = await import('./api/pokeapi')
-                                          const d = await fetchAbilityDetail(name)
-                                          setSelectedListItem({ type: 'habilidad', name, detail: d })
-                                        }
-                                      } catch {
-                                        // ignore
+                                        const detail = await lists.fetchDetail(name, activePanel)
+                                        if (detail) setSelectedListItem(detail)
                                       } finally {
                                         setLoadingDetail(false)
                                       }
@@ -956,13 +756,27 @@ function App() {
           </div>
 
           <div className="standalone-filter">
-            <FilterDropdown
+            <button
+              className="filter-btn"
+              aria-pressed={false}
+              onClick={() => setDrawerOpen(true)}
+              title="Abrir filtros"
+            >
+              <span className="filter-wheel">⚙️</span>
+            </button>
+
+            <FilterDrawer
+              open={drawerOpen}
+              onClose={() => setDrawerOpen(false)}
               generationOptions={generationOptions}
               loading={loadingCatalog || showFilterLoading}
-              onClearFilters={handleClearFilters}
-              onGenerationChange={handleGenerationChange}
-              onRarityChange={handleRarityChange}
-              onTypeChange={handleTypeChange}
+              onClearFilters={() => {
+                handleClearFilters()
+                setDrawerOpen(false)
+              }}
+              onGenerationChange={(v) => { handleGenerationChange(v); }}
+              onRarityChange={(v) => { handleRarityChange(v); }}
+              onTypeChange={(v) => { handleTypeChange(v); }}
               selectedGeneration={selectedGeneration}
               selectedRarity={selectedRarity}
               selectedType={selectedType}
@@ -978,6 +792,7 @@ function App() {
             onSearchSubmit={handleSearchSubmit}
             searchInput={searchInput}
             totalResults={totalResults}
+            catalog={catalog.map((p) => p.name)}
           />
 
           

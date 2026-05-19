@@ -1,9 +1,11 @@
 # myreactapp — Pokédex (React + Vite)
 
-Proyecto SPA construido con React + Vite: una Pokédex ligera con búsqueda, filtros y un panel de "Regiones y Localidades".
+Proyecto SPA construido con React + Vite: una Pokédex ligera con búsqueda, filtros, autocompletado y un panel de "Regiones y Localidades".
 
 Resumen rápido
 - Interfaz de búsqueda y filtrado por tipo, generación y rareza.
+- Buscador con debounce y sugerencias de autocompletado.
+- Filtros en drawer lateral con persistencia básica y sincronización con la URL.
 - Panel de listas con pestaña "Regiones y Localidades" que permite filtrar Pokémon por región o por localidad.
 - Visualización de información adicional por Pokémon (género y localidades) sin modificar las tarjetas principales.
 
@@ -17,7 +19,7 @@ Estructura principal
 Funciones clave
 - `fetchPokemonGender`, `fetchPokemonLocations`, `fetchPokemonByRegion`, `fetchPokemonByLocation`, `fetchAllLocations` en `src/api/pokemon-details.js`.
 - Buscador de localidades con dropdown filtrable y scroll optimizado.
-- Lista compacta de Pokémon por filtro que muestra únicamente nombre (sin clickable) y soporte para imagen (fallback cuando sea necesario).
+- Lista compacta de Pokémon por filtro que muestra únicamente nombre y soporte para imagen con fallback cuando sea necesario.
 
 Cómo ejecutar (desarrollo)
 1. Instalar dependencias:
@@ -45,6 +47,8 @@ Notas de desarrollo
 
 Problemas conocidos
 - Para ejecutar localmente necesitas tener `npm`/Node.js en el sistema (el proyecto no arranca si `npm` no está instalado en la máquina).
+- El servidor de desarrollo está fijado a `http://localhost:5173` y usa `strictPort: true`; si ese puerto está ocupado, Vite no cambia automáticamente.
+- `FilterDropdown.jsx` permanece en el árbol del proyecto como referencia, pero la UI principal ya usa `FilterDrawer.jsx`.
 
 Contribuir
 - Abrir una rama, crear PR con cambios claros y pruebas mínimas.

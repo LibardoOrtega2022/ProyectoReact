@@ -1,6 +1,8 @@
 /**
  * Hero section that holds the main search controls and result count.
  */
+import { useEffect, useState } from 'react'
+
 export default function SearchPanel({
   loading,
   onRandomPokemon,
@@ -8,12 +10,63 @@ export default function SearchPanel({
   onSearchSubmit,
   searchInput,
   totalResults,
+  catalog = [],
 }) {
   const quickTags = ['pikachu', 'mew', 'garchomp', 'charizard', 'bulbasaur']
 
+  // Local input state with debounce to reduce upstream updates
+  const [localInput, setLocalInput] = useState(searchInput || '')
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [highlightIndex, setHighlightIndex] = useState(-1)
+
+  useEffect(() => {
+    setLocalInput(searchInput || '')
+  }, [searchInput])
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      onSearchInputChange(localInput)
+    }, 250)
+    return () => clearTimeout(id)
+  }, [localInput, onSearchInputChange])
+
   function handleQuick(tag) {
+    setLocalInput(tag)
     onSearchInputChange(tag)
     // call submit after input update
+    setTimeout(() => onSearchSubmit({ preventDefault: () => {} }), 0)
+  }
+
+  const filteredSuggestions = (localInput ? catalog.filter((n) => n.includes(localInput.toLowerCase())) : []).slice(0, 6)
+
+  function handleKeyDown(e) {
+    if (!suggestionsOpen || filteredSuggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightIndex((i) => Math.min(i + 1, filteredSuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightIndex((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      if (highlightIndex >= 0) {
+        const pick = filteredSuggestions[highlightIndex]
+        setLocalInput(pick)
+        onSearchInputChange(pick)
+        setSuggestionsOpen(false)
+        setHighlightIndex(-1)
+        setTimeout(() => onSearchSubmit({ preventDefault: () => {} }), 0)
+      }
+    } else if (e.key === 'Escape') {
+      setSuggestionsOpen(false)
+      setHighlightIndex(-1)
+    }
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    onSearchInputChange(localInput)
+    setSuggestionsOpen(false)
+    setHighlightIndex(-1)
     setTimeout(() => onSearchSubmit({ preventDefault: () => {} }), 0)
   }
 
@@ -34,7 +87,7 @@ export default function SearchPanel({
         </div>
       </div>
 
-      <form className="search-bar" onSubmit={onSearchSubmit} role="search">
+      <form className="search-bar" onSubmit={handleSubmit} role="search">
         <label className="sr-only" htmlFor="pokemon-search">
           Buscar Pokémon
         </label>
@@ -45,16 +98,46 @@ export default function SearchPanel({
               <circle cx="11" cy="11" r="6" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </span>
-          <input
-            id="pokemon-search"
-            className="search-input"
-            type="text"
-            autoComplete="off"
-            spellCheck="false"
-            value={searchInput}
-            onChange={(event) => onSearchInputChange(event.target.value)}
-            placeholder="Ej: pikachu o 25"
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              id="pokemon-search"
+              className="search-input"
+              type="text"
+              autoComplete="off"
+              spellCheck="false"
+              value={localInput}
+              onChange={(event) => {
+                setLocalInput(event.target.value)
+                setSuggestionsOpen(true)
+                setHighlightIndex(-1)
+              }}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setSuggestionsOpen(true)}
+              placeholder="Ej: pikachu o 25"
+            />
+
+            {suggestionsOpen && filteredSuggestions.length > 0 && (
+              <ul className="search-suggestions" role="listbox">
+                {filteredSuggestions.map((s, idx) => (
+                  <li
+                    key={s}
+                    className={idx === highlightIndex ? 'highlight' : ''}
+                    onMouseDown={(e) => {
+                      // use onMouseDown to avoid blur before click
+                      e.preventDefault()
+                      setLocalInput(s)
+                      onSearchInputChange(s)
+                      setSuggestionsOpen(false)
+                      setHighlightIndex(-1)
+                      setTimeout(() => onSearchSubmit({ preventDefault: () => {} }), 0)
+                    }}
+                  >
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <button type="submit" className="primary search-submit" disabled={loading} aria-label="Buscar">
             {loading ? 'Cargando...' : 'Buscar'}

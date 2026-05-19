@@ -184,6 +184,8 @@ export default function PokemonCard({ pokemon }) {
   return (
     <article
       className="pokemon-card"
+      tabIndex={0}
+      aria-label={`Ficha de ${pokemon.name}`}
       data-rarity={rarityLabel || ''}
       style={{
         '--pokemon-accent': typeTheme.accent,
